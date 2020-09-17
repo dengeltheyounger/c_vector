@@ -1,34 +1,73 @@
 #include <stdio.h>
-#include "array_utilities2.h"
+#include "c_vector.h"
 
-define_array(int);
+// driver code for the c_vector
+
+define_vector(int)
 
 int main(int argc, char *argv[]) {
-	int error = 0;
+	c_vector(int) *vector = NULL;
+	size_t currindex = 0;
+	size_t currsize = 0;
+	size_t maxsize = 0;
 	size_t iter = 0;
-	array(int) *arr = NULL;
+	array_code code = 0;
 	
-	arr = new_array(arr, int, 0, error);
+	vector = new_c_vector(int, 0);
 	
-	printf("current index: %zu, current size: %zu, max size: %zu\n", get_current_index(arr), get_current_size(arr), get_max_size(arr));
+	currindex = vector->get_current_index(vector);
+	currsize = vector->get_current_size(vector);
+	maxsize = vector->get_max_size(vector);
 	
-	arr = push(arr, 1, error);
+	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
 	
-	printf("current index: %zu, current size: %zu, max size: %zu\n", get_current_index(arr), get_current_size(arr), get_max_size(arr));
+	code = vector->add_top(vector, 1);
 	
-	arr = push(arr, 95, error);
+	if (code != 0) {
+		fprintf(stderr, "Value of code: %d", code);
+	}
 	
-	printf("current index: %zu, current size: %zu, max size: %zu\n", get_current_index(arr), get_current_size(arr), get_max_size(arr));
-		
-	arr = push(arr, 1028, error);
+	currindex = vector->get_current_index(vector);
+	currsize = vector->get_current_size(vector);
+	maxsize = vector->get_max_size(vector);
 	
-	printf("current index: %zu, current size: %zu, max size: %zu\n", get_current_index(arr), get_current_size(arr), get_max_size(arr));
+	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
 	
-	iterate(arr, iter) {
-		printf("Value at index %zu: %d\n", iter, value_at(arr, iter, error));
-	} 
-		
-	arr = delete_array(arr);
+	code = vector->add_top(vector, 2);
 	
+	if (code != 0) {
+		fprintf(stderr, "Value of code: %d", code);
+	}
+	
+	currindex = vector->get_current_index(vector);
+	currsize = vector->get_current_size(vector);
+	maxsize = vector->get_max_size(vector);
+	
+	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+	
+	code = vector->add_top(vector, 3);
+
+	if (code != 0) {
+		fprintf(stderr, "Value of code: %d", code);
+	}	
+
+	currindex = vector->get_current_index(vector);
+	currsize = vector->get_current_size(vector);
+	maxsize = vector->get_max_size(vector);
+	
+	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+	
+	iterate_vector(vector, iter) {
+		printf("Value at index %ld: %d\n", iter, vector->data[iter]);
+	}
+	
+	vector->remove_top(vector);
+	iter = 0;
+	
+	iterate_vector(vector, iter) {
+		printf("Value at index %ld: %d\n", iter, vector->data[iter]);
+	}
+	
+	vector->destroy_vector(vector);
 	return 0;
 }
