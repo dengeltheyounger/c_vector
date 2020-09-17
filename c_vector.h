@@ -20,8 +20,41 @@
 	 memset_failed
 } array_code; 
 
+/* iterate_vector(VECTOR, ITER)
+ * INPUT: VECTOR -> c_vector struct pointer, ITER -> size_t variable that points to starting index
+ * OUTPUT: None
+ * NOTES: This can be used for many different iteration operations. Just add brackets
+ */
 #define iterate_vector(VECTOR, ITER)	for (ITER; ITER < VECTOR->curr_index; ++ITER)
  
+/* c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector)
+ * INPUT: c_vector_##DATA* -> c_vector struct pointer of a given data type
+ * OUTPUT: None
+ * USAGE: vector = vector->destroy_c_vector(vector);
+ * NOTES: Destructor for the c_vector
+ * 
+ * array_code add_top_##DATA(c_vector_##DATA* vector, DATA value)
+ * INPUT: c_vector_##DATA* -> c_vector struct pointer, DATA -> value of given data type
+ * OUTPUT: enum array_code to indicate error or success
+ * USAGE: array_code code = vector->add_top(vector, value);
+ * NOTES: This function is meant to mirror the vector's push_back method. If
+ * new memory needs to be allocated, this function will zero the newly allocated
+ * memory.
+ * 
+ * static inline void remove_top_##DATA(c_vector_##DATA*)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: none
+ * Notes: This function zeros the last value added into array and then decrements curr_index.
+ * The function is inline because it is so small that a function call may not be worth it.
+ * This allows the compiler to decide if it wants to just copy and paste.
+ *
+ * static inline size_t get_current_index_##DATA(c_vector_##DATA*)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: value of c_vector's curr_index member
+ * Notes: The current index is the next index available for the add_top function.
+ * 
+ * static inline size_t get_current_size_##DATA(c_vector_##DATA*)
+ */
 #define define_vector(DATA)	\
 	typedef struct c_vector_##DATA { \
 		size_t max_size;	\
@@ -49,7 +82,7 @@
 		return NULL;	\
 	}					\
 						\
-	array_code add_top_##DATA(struct c_vector_##DATA *vector, DATA value) {	\
+	array_code add_top_##DATA(c_vector_##DATA *vector, DATA value) {	\
 		DATA* temp = NULL;	\
 		DATA* memtemp = NULL;	\
 		if ((vector->curr_index+1) > vector->current_size) {	\
