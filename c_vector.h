@@ -119,6 +119,7 @@
 		size_t (*get_current_size)(struct c_vector_##DATA*);	\
 		size_t (*get_max_size)(struct c_vector_##DATA*);	\
 		array_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
+		DATA (*value_at)(struct c_vector_##DATA*, size_t);	\
 	} c_vector_##DATA;	\
 						\
 	c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector) {	\
@@ -195,6 +196,14 @@
 		return 0;	\
 		\
 	}	\
+		\
+	DATA value_at_##DATA(c_vector_##DATA *vector, size_t index) {	\
+		if (index >= vector->curr_index) {	\
+			return 0;	\
+		}	\
+			\
+		return vector->data[index];	\
+	}	\
 	void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
 		vector->destroy_vector = &destroy_c_vector_##DATA;	\
 		vector->add_top = &add_top_##DATA;	\
@@ -203,6 +212,7 @@
 		vector->get_max_size = &get_max_size_##DATA; \
 		vector->remove_top = &remove_top_##DATA;	\
 		vector->insert = &insert_##DATA;	\
+		vector->value_at = &value_at_##DATA;	\
 	}	\
 	\
 	c_vector_##DATA *new_vector_##DATA(size_t number) {	\

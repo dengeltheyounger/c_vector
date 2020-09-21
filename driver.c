@@ -58,21 +58,21 @@ int main(int argc, char *argv[]) {
 	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
 	
 	iterate_vector(vector, iter) {
-		printf("Value at index %ld: %d\n", iter, vector->data[iter]);
+		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
 	}
 	
 	vector->remove_top(vector);
 	iter = 0;
 	
 	iterate_vector(vector, iter) {
-		printf("Value at index %ld: %d\n", iter, vector->data[iter]);
+		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
 	}
 
 	iter = 0;
 	vector->insert(vector, 1,  500);
 
 	iterate_vector(vector, iter) {
-		printf("Value at index %ld: %d\n", iter, vector->data[iter]);
+		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
 	}
 	
 	size_t vsize = sizeof(c_vector(int));
