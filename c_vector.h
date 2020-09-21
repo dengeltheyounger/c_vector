@@ -20,8 +20,90 @@
 	 memset_failed
 } array_code; 
 
+/* iterate_vector(VECTOR, ITER)
+ * INPUT: VECTOR -> c_vector struct pointer, ITER -> size_t variable that points to starting index
+ * OUTPUT: None
+ * USAGE: iterate_vector(VECTOR, ITER) { code for iteration here... }
+ * NOTES: This can be used for many different iteration operations. Just add brackets.
+ */
 #define iterate_vector(VECTOR, ITER)	for (ITER; ITER < VECTOR->curr_index; ++ITER)
+
+/* code_to_string(CODE)
+ * INPUT: CODE -> array_code value
+ * OUTPUT: stringified array_code token
+ * USAGE: char *error_value = code_to_string(error_code)
+ * NOTES: This can be useful if the user desires to implement a logger for this array
+ */ 
+
+#define code_to_string(CODE) ({ #CODE; })
  
+/* define_vector(DATA)
+ * INPUT: DATA -> data type for desired vector
+ * OUTPUT: None
+ * USAGE: define_vector(int)
+ * NOTES: This must be called before the vector and associated functions are used. 
+ * define_vector essentially creates a set a c_vector struct and a set of functions
+ * for the given data type. Using the overall approach allows the generality and ease
+ * of programming that comes with macros, along with the type safety and space efficiency
+ * of functions (since you don't have the same code copied and pasted into main 100 times).
+ * Another option would be to use void * and then have macro wrappers that deal with the
+ * data types. However, I think that that would be more error prone and more difficult to 
+ * program.
+ * 
+ * c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA *vector)
+ * INPUT: c_vector_##DATA* -> c_vector struct pointer of a given data type
+ * OUTPUT: None
+ * USAGE: vector = vector->destroy_c_vector(vector);
+ * NOTES: Destructor for the c_vector
+ * 
+ * array_code add_top_##DATA(c_vector_##DATA *vector, DATA value)
+ * INPUT: c_vector_##DATA* -> c_vector struct pointer, DATA -> value of given data type
+ * OUTPUT: enum array_code to indicate error or success
+ * USAGE: array_code code = vector->add_top(vector, value);
+ * NOTES: This function is meant to mirror the vector's push_back method. If
+ * new memory needs to be allocated, this function will zero the newly allocated
+ * memory.
+ * 
+ * static inline void remove_top_##DATA(c_vector_##DATA *vector)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: none
+ * USAGE: vector->remove_top(vector);
+ * NOTES: This function zeros the last value added into array and then decrements curr_index.
+ * The function is inline because it is so small that a function call may not be worth it.
+ * This allows the compiler to decide if it wants to just copy and paste.
+ *
+ * static inline size_t get_current_index_##DATA(c_vector_##DATA *vector)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: value of c_vector's curr_index member
+ * USAGE: size_t value = vector->get_current_index(vector);
+ * NOTES: The current index is the next index available for the add_top function.
+ * 
+ * static inline size_t get_current_size_##DATA(c_vector_##DATA *vector)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: current size of *data member
+ * USAGE: size_t value = vector->get_current_size(vector);
+ * NOTES: 
+ *
+ * static inline size_t get_max_size_##DATA(c_vector_##DATA *vector)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: max size of *data member
+ * USAGE: size_t value = vector->get_max_size(vector);
+ * NOTES: 
+ *
+ * static inline void set_vector_ptr_##DATA(c_vector_##DATA *vector)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: None
+ * USAGE: Internal use only
+ * NOTES: This sets the function pointers for c_vector struct when new_vector is called
+ *  
+ * c_vector_##DATA *new_vector_##DATA(size_t number) 
+ * INPUT: size_t number -> number of elements to allocate
+ * OUTPUT: c_vector struct pointer
+ * USAGE: internal use only, use the macro wrapper defined above
+ * NOTES: This creates a new vector of a given data type. If the number of elements to
+ * allocate is 0, then the function will allocate space for 2 elements. Any memory pre-allocated
+ * is zeroed before the struct pointer is returned to the caller
+ */
 #define define_vector(DATA)	\
 	typedef struct c_vector_##DATA { \
 		size_t max_size;	\
@@ -49,7 +131,7 @@
 		return NULL;	\
 	}					\
 						\
-	array_code add_top_##DATA(struct c_vector_##DATA *vector, DATA value) {	\
+	array_code add_top_##DATA(c_vector_##DATA *vector, DATA value) {	\
 		DATA* temp = NULL;	\
 		DATA* memtemp = NULL;	\
 		if ((vector->curr_index+1) > vector->current_size) {	\
@@ -143,7 +225,26 @@
 		return vector;	\
 	}	
 	
+/* c_vector(DATA)
+ * INPUT: DATA -> the data type desired for the array
+ * OUTPUT: None
+ * USAGE: c_vector(int) *data = NULL;
+ * NOTES: This is used a wrapper and abstracts away some of the internal naming conventions above.
+ * If the user wishes to reference a c_vector of type double, they can refer to it as 
+ * c_vector(double) instead of c_vector_double.
+ * Make sure to typedef any multi-word data types. The c_vector can only handle single word data types.
+ */
 #define c_vector(DATA) c_vector_##DATA
+/* new_c_vector(DATA, NUMBER)
+ * INPUT: DATA -> the data type desired for the array, NUMBER -> the number of elements to preallocate
+ * OUTPUT: Pointer to newly created c_vector struct
+ * USAGE: c_vector(int) *vector = new_c_vector(int, 0);
+ * NOTES: new_vector_##DATA does not make sense as a function pointer for the c_vector struct. new_vector
+ * is in charge of creating the vector struct, and would lead to a catch 22. For that reason, this
+ * wrapper was created in order to abstract away the naming convention above. Instead of worrying about
+ * how exactly how the data type is used to uniquely name the function, one need only specify the 
+ * data type and number of elements.
+ */
 #define new_c_vector(DATA, NUMBER) new_vector_##DATA((size_t) NUMBER)
 	
 #endif
