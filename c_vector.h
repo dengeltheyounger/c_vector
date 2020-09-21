@@ -17,7 +17,8 @@
  typedef enum array_code {
 	 // This allows 0 as a success code
 	 realloc_failed = 1,
-	 memset_failed
+	 memset_failed,
+	 invalid_index
 } array_code; 
 
 /* iterate_vector(VECTOR, ITER)
@@ -117,6 +118,7 @@
 		size_t (*get_current_index)(struct c_vector_##DATA*);	\
 		size_t (*get_current_size)(struct c_vector_##DATA*);	\
 		size_t (*get_max_size)(struct c_vector_##DATA*);	\
+		array_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
 	} c_vector_##DATA;	\
 						\
 	c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector) {	\
@@ -178,6 +180,21 @@
 		return vector->max_size;	\
 	}	\
 		\
+		\
+	array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value) {	\
+		if (index > (vector->current_size - 1)) {	\
+			return invalid_index;	\
+		}	\
+			\
+		vector->data[index] = value;	\
+			\
+		if (index > vector->curr_index) {	\
+			vector->curr_index = index;	\
+		}	\
+			\
+		return 0;	\
+		\
+	}	\
 	void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
 		vector->destroy_vector = &destroy_c_vector_##DATA;	\
 		vector->add_top = &add_top_##DATA;	\
