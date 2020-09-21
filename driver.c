@@ -67,6 +67,17 @@ int main(int argc, char *argv[]) {
 	iterate_vector(vector, iter) {
 		printf("Value at index %ld: %d\n", iter, vector->data[iter]);
 	}
+
+	iter = 0;
+	vector->insert(vector, 1,  500);
+
+	iterate_vector(vector, iter) {
+		printf("Value at index %ld: %d\n", iter, vector->data[iter]);
+	}
+	
+	size_t vsize = sizeof(c_vector(int));
+
+	printf("Size of vector is %ld bytes.\n", vsize);
 	
 	vector->destroy_vector(vector);
 	return 0;

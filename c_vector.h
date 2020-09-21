@@ -202,6 +202,7 @@
 		vector->get_current_size = &get_current_size_##DATA; \
 		vector->get_max_size = &get_max_size_##DATA; \
 		vector->remove_top = &remove_top_##DATA;	\
+		vector->insert = &insert_##DATA;	\
 	}	\
 	\
 	c_vector_##DATA *new_vector_##DATA(size_t number) {	\
