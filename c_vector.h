@@ -159,26 +159,26 @@
 		return 0;	\
 	}	\
 		\
-	static inline void remove_top_##DATA(c_vector_##DATA *vector) {	\
+	void remove_top_##DATA(c_vector_##DATA *vector) {	\
 		if (vector->curr_index == 0) {	\
 			return;	\
 		}	\
 		vector->data[vector->curr_index - 1] = 0;	\
 		--(vector->curr_index);	\
 	}	\
-	static inline size_t get_current_index_##DATA(c_vector_##DATA *vector) {	\
+	size_t get_current_index_##DATA(c_vector_##DATA *vector) {	\
 		return vector->curr_index;	\
 	}	\
 		\
-	static inline size_t get_current_size_##DATA(c_vector_##DATA *vector) {	\
+	size_t get_current_size_##DATA(c_vector_##DATA *vector) {	\
 		return vector->current_size;	\
 	}	\
 		\
-	static inline size_t get_max_size_##DATA(c_vector_##DATA *vector) {	\
+	size_t get_max_size_##DATA(c_vector_##DATA *vector) {	\
 		return vector->max_size;	\
 	}	\
 		\
-	static inline void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
+	void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
 		vector->destroy_vector = &destroy_c_vector_##DATA;	\
 		vector->add_top = &add_top_##DATA;	\
 		vector->get_current_index = &get_current_index_##DATA; \
