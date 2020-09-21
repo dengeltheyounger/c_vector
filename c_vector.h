@@ -120,6 +120,7 @@
 		size_t (*get_max_size)(struct c_vector_##DATA*);	\
 		array_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
 		DATA (*value_at)(struct c_vector_##DATA*, size_t);	\
+		array_code (*resize)(struct c_vector_##DATA*, size_t);	\
 	} c_vector_##DATA;	\
 						\
 	c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector) {	\
@@ -144,9 +145,8 @@
 				return realloc_failed;	\
 			}	\
 			vector->data = temp;	\
-			memtemp = &vector->data[vector->max_size-1];	\
-			bzero(memtemp, sizeof(DATA)*vector->max_size);	\
-			if (temp == NULL) {	\
+			memtemp = (DATA*) memset(&(vector->data)[vector->max_size-1], 0, sizeof(DATA)*vector->max_size);	\
+			if (memtemp == NULL) {	\
 				return memset_failed;	\
 			}	\
 			temp = NULL;	\
@@ -204,6 +204,46 @@
 			\
 		return vector->data[index];	\
 	}	\
+		\
+	array_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum) {	\
+		size_t newsize = elementnum*sizeof(DATA);	\
+		DATA *temp = NULL;	\
+		if (newsize == vector->current_size) {	\
+			return 0;	\
+		}	\
+		else if (newsize > vector->current_size && newsize < vector->max_size) {	\
+			vector->current_size = newsize;	\
+			return 0;	\
+		}	\
+			\
+		else if (newsize < vector->current_size) {	\
+			temp = (DATA*) memset(&(vector->data)[newsize-1], 0, (newsize - vector->current_size));	\
+			if (temp == NULL) {	\
+				return memset_failed;	\
+			}	\
+			vector->current_size = newsize;	\
+			if (vector->curr_index > (newsize - 1)) {	\
+				vector->curr_index = newsize -1;	\
+			}	\
+				\
+			vector->data = temp;	\
+			return 0;	\
+		}	\
+			\
+		temp = realloc(vector->data, 2*newsize);	\
+		if (temp == NULL) {	\
+			return realloc_failed;	\
+		}	\
+		vector->data = temp; temp = NULL;	\
+		temp = (DATA*) memset(&(vector->data)[vector->max_size-1], 0, ((2*newsize) - vector->max_size));	\
+		if (temp == NULL) {	\
+			return memset_failed;	\
+		}	\
+		vector->data = temp; temp = NULL;	\
+		vector->current_size = newsize;	\
+		vector->max_size = 2*newsize;	\
+		return 0;	\
+	}	\
 	void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
 		vector->destroy_vector = &destroy_c_vector_##DATA;	\
 		vector->add_top = &add_top_##DATA;	\
@@ -213,6 +253,7 @@
 		vector->remove_top = &remove_top_##DATA;	\
 		vector->insert = &insert_##DATA;	\
 		vector->value_at = &value_at_##DATA;	\
+		vector->resize = &resize_##DATA;	\
 	}	\
 	\
 	c_vector_##DATA *new_vector_##DATA(size_t number) {	\
