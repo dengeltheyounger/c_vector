@@ -145,7 +145,8 @@
 				return realloc_failed;	\
 			}	\
 			vector->data = temp;	\
-			memtemp = (DATA*) memset(&(vector->data)[vector->max_size-1], 0, sizeof(DATA)*vector->max_size);	\
+			size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
+			memtemp = (DATA*) memset(&(vector->data[index]), 0, sizeof(DATA)*vector->max_size);	\
 			if (memtemp == NULL) {	\
 				return memset_failed;	\
 			}	\
@@ -174,11 +175,11 @@
 	}	\
 		\
 	size_t get_current_size_##DATA(c_vector_##DATA *vector) {	\
-		return vector->current_size;	\
+		return (vector->current_size / sizeof(DATA));	\
 	}	\
 		\
 	size_t get_max_size_##DATA(c_vector_##DATA *vector) {	\
-		return vector->max_size;	\
+		return (vector->max_size / sizeof(DATA));	\
 	}	\
 		\
 		\
@@ -208,6 +209,7 @@
 	array_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum) {	\
 		size_t newsize = elementnum*sizeof(DATA);	\
 		DATA *temp = NULL;	\
+		DATA *memtemp = NULL;	\
 		if (newsize == vector->current_size) {	\
 			return 0;	\
 		}	\
@@ -217,7 +219,8 @@
 		}	\
 			\
 		else if (newsize < vector->current_size) {	\
-			temp = (DATA*) memset(&(vector->data)[newsize-1], 0, (newsize - vector->current_size));	\
+			size_t index = (newsize / sizeof(DATA)) - 1;	\
+			temp = (DATA*) memset(&(vector->data[index]), 0, (newsize - vector->current_size));	\
 			if (temp == NULL) {	\
 				return memset_failed;	\
 			}	\
@@ -230,16 +233,17 @@
 			return 0;	\
 		}	\
 			\
-		temp = realloc(vector->data, 2*newsize);	\
+		temp = (DATA*) realloc(vector->data, 2*newsize);	\
 		if (temp == NULL) {	\
 			return realloc_failed;	\
 		}	\
-		vector->data = temp; temp = NULL;	\
-		temp = (DATA*) memset(&(vector->data)[vector->max_size-1], 0, ((2*newsize) - vector->max_size));	\
-		if (temp == NULL) {	\
+		vector->data = temp;	\
+		temp = NULL;	\
+		size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
+		memtemp = (DATA*) memset(&(vector->data[index]), 0, ((2*newsize) - vector->max_size));	\
+		if (memtemp == NULL) {	\
 			return memset_failed;	\
 		}	\
-		vector->data = temp; temp = NULL;	\
 		vector->current_size = newsize;	\
 		vector->max_size = 2*newsize;	\
 		return 0;	\
@@ -273,7 +277,7 @@
 				return NULL;	\
 			}	\
 				\
-			vector->max_size = 2;	\
+			vector->max_size = 2*sizeof(DATA);	\
 			vector->current_size = 0;	\
 		}	\
 			\

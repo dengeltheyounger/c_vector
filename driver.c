@@ -8,6 +8,7 @@
 define_vector(int)
 
 int main(int argc, char *argv[]) {
+	printf("The size of data type: %ld\n", sizeof(int));
 	c_vector(int) *vector = NULL;
 	size_t currindex = 0;
 	size_t currsize = 0;
