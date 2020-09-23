@@ -17,7 +17,8 @@
  typedef enum array_code {
 	 // This allows 0 as a success code
 	 realloc_failed = 1,
-	 memset_failed
+	 memset_failed,
+	 invalid_index
 } array_code; 
 
 /* iterate_vector(VECTOR, ITER)
@@ -117,6 +118,9 @@
 		size_t (*get_current_index)(struct c_vector_##DATA*);	\
 		size_t (*get_current_size)(struct c_vector_##DATA*);	\
 		size_t (*get_max_size)(struct c_vector_##DATA*);	\
+		array_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
+		DATA (*value_at)(struct c_vector_##DATA*, size_t);	\
+		array_code (*resize)(struct c_vector_##DATA*, size_t);	\
 	} c_vector_##DATA;	\
 						\
 	c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector) {	\
@@ -141,9 +145,9 @@
 				return realloc_failed;	\
 			}	\
 			vector->data = temp;	\
-			memtemp = &vector->data[vector->max_size-1];	\
-			bzero(memtemp, sizeof(DATA)*vector->max_size);	\
-			if (temp == NULL) {	\
+			size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
+			memtemp = (DATA*) memset(&(vector->data[index]), 0, sizeof(DATA)*vector->max_size);	\
+			if (memtemp == NULL) {	\
 				return memset_failed;	\
 			}	\
 			temp = NULL;	\
@@ -171,13 +175,78 @@
 	}	\
 		\
 	size_t get_current_size_##DATA(c_vector_##DATA *vector) {	\
-		return vector->current_size;	\
+		return (vector->current_size / sizeof(DATA));	\
 	}	\
 		\
 	size_t get_max_size_##DATA(c_vector_##DATA *vector) {	\
-		return vector->max_size;	\
+		return (vector->max_size / sizeof(DATA));	\
 	}	\
 		\
+		\
+	array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value) {	\
+		if (index > (vector->current_size - 1)) {	\
+			return invalid_index;	\
+		}	\
+			\
+		vector->data[index] = value;	\
+			\
+		if (index > vector->curr_index) {	\
+			vector->curr_index = index;	\
+		}	\
+			\
+		return 0;	\
+		\
+	}	\
+		\
+	DATA value_at_##DATA(c_vector_##DATA *vector, size_t index) {	\
+		if (index >= vector->curr_index) {	\
+			return 0;	\
+		}	\
+			\
+		return vector->data[index];	\
+	}	\
+		\
+	array_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum) {	\
+		size_t newsize = elementnum*sizeof(DATA);	\
+		DATA *temp = NULL;	\
+		DATA *memtemp = NULL;	\
+		if (newsize == vector->current_size) {	\
+			return 0;	\
+		}	\
+		else if (newsize > vector->current_size && newsize < vector->max_size) {	\
+			vector->current_size = newsize;	\
+			return 0;	\
+		}	\
+			\
+		else if (newsize < vector->current_size) {	\
+			size_t index = elementnum - 1;	\
+			temp = (DATA*) memset(&(vector->data[index]), 0, (vector->max_size - newsize));	\
+			if (temp == NULL) {	\
+				return memset_failed;	\
+			}	\
+			vector->current_size = newsize;	\
+			if (vector->curr_index > index) {	\
+				vector->curr_index = index;	\
+			}	\
+				\
+			return 0;	\
+		}	\
+			\
+		temp = (DATA*) realloc(vector->data, 2*newsize);	\
+		if (temp == NULL) {	\
+			return realloc_failed;	\
+		}	\
+		vector->data = temp;	\
+		temp = NULL;	\
+		size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
+		memtemp = (DATA*) memset(&(vector->data[index]), 0, ((2*newsize) - vector->max_size));	\
+		if (memtemp == NULL) {	\
+			return memset_failed;	\
+		}	\
+		vector->current_size = newsize;	\
+		vector->max_size = 2*newsize;	\
+		return 0;	\
+	}	\
 	void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
 		vector->destroy_vector = &destroy_c_vector_##DATA;	\
 		vector->add_top = &add_top_##DATA;	\
@@ -185,6 +254,9 @@
 		vector->get_current_size = &get_current_size_##DATA; \
 		vector->get_max_size = &get_max_size_##DATA; \
 		vector->remove_top = &remove_top_##DATA;	\
+		vector->insert = &insert_##DATA;	\
+		vector->value_at = &value_at_##DATA;	\
+		vector->resize = &resize_##DATA;	\
 	}	\
 	\
 	c_vector_##DATA *new_vector_##DATA(size_t number) {	\
@@ -204,7 +276,7 @@
 				return NULL;	\
 			}	\
 				\
-			vector->max_size = 2;	\
+			vector->max_size = 2*sizeof(DATA);	\
 			vector->current_size = 0;	\
 		}	\
 			\
