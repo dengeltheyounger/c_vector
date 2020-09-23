@@ -65,33 +65,52 @@
  * new memory needs to be allocated, this function will zero the newly allocated
  * memory.
  * 
- * static inline void remove_top_##DATA(c_vector_##DATA *vector)
+ * void remove_top_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: none
  * USAGE: vector->remove_top(vector);
  * NOTES: This function zeros the last value added into array and then decrements curr_index.
- * The function is inline because it is so small that a function call may not be worth it.
- * This allows the compiler to decide if it wants to just copy and paste.
  *
- * static inline size_t get_current_index_##DATA(c_vector_##DATA *vector)
+ * size_t get_current_index_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: value of c_vector's curr_index member
  * USAGE: size_t value = vector->get_current_index(vector);
  * NOTES: The current index is the next index available for the add_top function.
  * 
- * static inline size_t get_current_size_##DATA(c_vector_##DATA *vector)
+ * size_t get_current_size_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: current size of *data member
  * USAGE: size_t value = vector->get_current_size(vector);
  * NOTES: 
  *
- * static inline size_t get_max_size_##DATA(c_vector_##DATA *vector)
+ * size_t get_max_size_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: max size of *data member
  * USAGE: size_t value = vector->get_max_size(vector);
  * NOTES: 
  *
- * static inline void set_vector_ptr_##DATA(c_vector_##DATA *vector)
+ * array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA data)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * index -> index at which to insert
+ * data -> value to insert at index
+ * OUTPUT: 0 for success or invalid_index on failure
+ * USAGE: array_code code = vector->insert(vector, index, data);
+ * NOTES: 
+ * 
+ * DATA value_at(c_vector_##DATA *vector, size_t index)
+ * INPUT c_vector_##DATA -> c_vector struct pointer
+ * index -> index to retrieve value at
+ * OUTPUT: value for success or 0 if index is invalid
+ * NOTES: An alternative method for indicating error should be sought
+ * 
+ * array_code resize(c_vector_##DATA *vector, size_t num)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * num -> number of elements (not number of bytes
+ * OUTPUT: 0 for success or array_code for failure
+ * NOTES: memset is used in the case max size is increased or curr_index
+ * is shrunk.
+ * 
+ * void set_vector_ptr_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: None
  * USAGE: Internal use only
