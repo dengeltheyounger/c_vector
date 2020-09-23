@@ -219,17 +219,16 @@
 		}	\
 			\
 		else if (newsize < vector->current_size) {	\
-			size_t index = (newsize / sizeof(DATA)) - 1;	\
-			temp = (DATA*) memset(&(vector->data[index]), 0, (newsize - vector->current_size));	\
+			size_t index = elementnum - 1;	\
+			temp = (DATA*) memset(&(vector->data[index]), 0, (vector->max_size - newsize));	\
 			if (temp == NULL) {	\
 				return memset_failed;	\
 			}	\
 			vector->current_size = newsize;	\
-			if (vector->curr_index > (newsize - 1)) {	\
-				vector->curr_index = newsize -1;	\
+			if (vector->curr_index > index) {	\
+				vector->curr_index = index;	\
 			}	\
 				\
-			vector->data = temp;	\
 			return 0;	\
 		}	\
 			\

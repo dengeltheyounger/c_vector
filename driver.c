@@ -58,7 +58,32 @@ int main(int argc, char *argv[]) {
 	currsize = vector->get_current_size(vector);
 	maxsize = vector->get_max_size(vector);
 
+	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+
+	code = vector->resize(vector, 36);
+
+	if (code != 0) {
+		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+	}
+
+	currindex = vector->get_current_index(vector);
+	currsize = vector->get_current_size(vector);
+	maxsize = vector->get_max_size(vector);
+
+
 	printf("current index: %ld, current size: %ld, max size %ld\n", currindex, currsize, maxsize);	
+
+	code = vector->resize(vector, 24);
+
+	if (code != 0) {
+		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+	}
+
+	currindex = vector->get_current_index(vector);
+	currsize = vector->get_current_size(vector);
+	maxsize = vector->get_max_size(vector);
+
+	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
 
 	code = vector->add_top(vector, 3);
 
