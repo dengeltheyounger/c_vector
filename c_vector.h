@@ -1,10 +1,9 @@
 #ifndef C_VECTOR_H
 #define C_VECTOR_H
+#include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-// This is a convenient shorthand for typechecking
-#define check_types(A, B)	__builtin_types_compatible_p(typeof(A), typeof(B))
 
 // This can be used to get type information for a c_vector
 #define type_name(DATA_TYPE)	#DATA_TYPE
@@ -43,7 +42,7 @@
  * OUTPUT: None
  * USAGE: define_vector(int)
  * NOTES: This must be called before the vector and associated functions are used. 
- * define_vector essentially creates a set a c_vector struct and a set of functions
+ * define_vector essentially defines a c_vector struct and a set of functions
  * for the given data type. Using the overall approach allows the generality and ease
  * of programming that comes with macros, along with the type safety and space efficiency
  * of functions (since you don't have the same code copied and pasted into main 100 times).
@@ -59,7 +58,7 @@
  * 
  * array_code add_top_##DATA(c_vector_##DATA *vector, DATA value)
  * INPUT: c_vector_##DATA* -> c_vector struct pointer, DATA -> value of given data type
- * OUTPUT: enum array_code to indicate error or success
+ * OUTPUT: enum array_code to indicate error or 0 to indicate success
  * USAGE: array_code code = vector->add_top(vector, value);
  * NOTES: This function is meant to mirror the vector's push_back method. If
  * new memory needs to be allocated, this function will zero the newly allocated
@@ -88,29 +87,37 @@
  * OUTPUT: max size of *data member
  * USAGE: size_t value = vector->get_max_size(vector);
  * NOTES: 
- *
- * array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA data)
+ * 
+ * array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
- * index -> index at which to insert
- * data -> value to insert at index
- * OUTPUT: 0 for success or invalid_index on failure
- * USAGE: array_code code = vector->insert(vector, index, data);
+ * size_t index -> index at which to insert value, DATA value -> value to insert
+ * OUTPUT: array_code for error or 0 for success
+ * USAGE: array_code code = vector->insert(vector, index, value);
  * NOTES: 
  * 
- * DATA value_at(c_vector_##DATA *vector, size_t index)
- * INPUT c_vector_##DATA -> c_vector struct pointer
- * index -> index to retrieve value at
- * OUTPUT: value for success or 0 if index is invalid
- * NOTES: An alternative method for indicating error should be sought
+ * DATA value_at_##DATA(c_vector_##DATA *vector, size_t index)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer, size_t index -> index at which to insert
+ * OUTPUT: value at index on success or 0 if index is out of bounds
+ * USAGE: DATA value = vector->value_at(vector, index);
+ * NOTES: This will return 0 on error. Depending on what's on the index provided,
+ * this may or may not be an error
  * 
- * array_code resize(c_vector_##DATA *vector, size_t num)
+ * array_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
- * num -> number of elements (not number of bytes
- * OUTPUT: 0 for success or array_code for failure
- * NOTES: memset is used in the case max size is increased or curr_index
- * is shrunk.
+ * size_t elementnum -> number of elements that array should now have
+ * OUTPUT: 0 for success or array_code for error
+ * USAGE: array_code code = vector->resize(vector, elementnum);
+ * NOTES: elementnum should be the number of elements, not the number of bytes
  * 
- * void set_vector_ptr_##DATA(c_vector_##DATA *vector)
+ * array_code shrink_##DATA(c_vector_##DATA *vector)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: 0 for success or array_code for error
+ * USAGE: array_code code = vector->shrink(vector);
+ * NOTES: This will make max size equal to current size.
+ * If current size is already 0, it will free the memory.
+ * If the max size is equal to the current size, it will return 0
+ *
+ * static inline void set_vector_ptr_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: None
  * USAGE: Internal use only
@@ -140,6 +147,7 @@
 		array_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
 		DATA (*value_at)(struct c_vector_##DATA*, size_t);	\
 		array_code (*resize)(struct c_vector_##DATA*, size_t);	\
+		array_code (*shrink)(struct c_vector_##DATA*);	\
 	} c_vector_##DATA;	\
 						\
 	c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector) {	\
@@ -266,7 +274,25 @@
 		vector->max_size = 2*newsize;	\
 		return 0;	\
 	}	\
-	void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
+		\
+	array_code shrink_##DATA(c_vector_##DATA* vector) {	\
+		if (vector->max_size == vector->current_size) {	\
+			return 0;	\
+		}	\
+			\
+		DATA *temp = NULL;	\
+		temp = realloc(vector->data, vector->current_size);	\
+			\
+		if (temp == NULL) {	\
+			return realloc_failed;	\
+		}	\
+			\
+		vector->max_size = vector->current_size;	\
+		vector->data = temp;	\
+		return 0;	\
+	}	\
+		\
+	static inline void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
 		vector->destroy_vector = &destroy_c_vector_##DATA;	\
 		vector->add_top = &add_top_##DATA;	\
 		vector->get_current_index = &get_current_index_##DATA; \
@@ -276,6 +302,7 @@
 		vector->insert = &insert_##DATA;	\
 		vector->value_at = &value_at_##DATA;	\
 		vector->resize = &resize_##DATA;	\
+		vector->shrink = &shrink_##DATA;	\
 	}	\
 	\
 	c_vector_##DATA *new_vector_##DATA(size_t number) {	\
