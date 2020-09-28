@@ -66,7 +66,7 @@
  * new memory needs to be allocated, this function will zero the newly allocated
  * memory.
  * 
- * remove_top_##DATA(c_vector_##DATA *vector)
+ * void remove_top_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: none
  * USAGE: vector->remove_top(vector);
@@ -89,6 +89,35 @@
  * OUTPUT: max size of *data member
  * USAGE: size_t value = vector->get_max_size(vector);
  * NOTES: 
+ * 
+ * array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * size_t index -> index at which to insert value, DATA value -> value to insert
+ * OUTPUT: array_code for error or 0 for success
+ * USAGE: array_code code = vector->insert(vector, index, value);
+ * NOTES: 
+ * 
+ * DATA value_at_##DATA(c_vector_##DATA *vector, size_t index)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer, size_t index -> index at which to insert
+ * OUTPUT: value at index on success or 0 if index is out of bounds
+ * USAGE: DATA value = vector->value_at(vector, index);
+ * NOTES: This will return 0 on error. Depending on what's on the index provided,
+ * this may or may not be an error
+ * 
+ * array_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * size_t elementnum -> number of elements that array should now have
+ * OUTPUT: 0 for success or array_code for error
+ * USAGE: array_code code = vector->resize(vector, elementnum);
+ * NOTES: elementnum should be the number of elements, not the number of bytes
+ * 
+ * array_code shrink_##DATA(c_vector_##DATA *vector)
+ * INPUT: c_vector_##DATA -> c_vector struct pointer
+ * OUTPUT: 0 for success or array_code for error
+ * USAGE: array_code code = vector->shrink(vector);
+ * NOTES: This will make max size equal to current size.
+ * If current size is already 0, it will free the memory.
+ * If the max size is equal to the current size, it will return 0
  *
  * static inline void set_vector_ptr_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
