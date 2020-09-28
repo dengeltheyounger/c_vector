@@ -1,5 +1,6 @@
 #ifndef C_VECTOR_H
 #define C_VECTOR_H
+#include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
@@ -121,6 +122,7 @@
 		array_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
 		DATA (*value_at)(struct c_vector_##DATA*, size_t);	\
 		array_code (*resize)(struct c_vector_##DATA*, size_t);	\
+		array_code (*shrink)(struct c_vector_##DATA*);	\
 	} c_vector_##DATA;	\
 						\
 	c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector) {	\
@@ -247,6 +249,24 @@
 		vector->max_size = 2*newsize;	\
 		return 0;	\
 	}	\
+		\
+	array_code shrink_##DATA(c_vector_##DATA* vector) {	\
+		if (vector->current_size == 0) {	\
+			return 0;	\
+		}	\
+			\
+		DATA *temp = NULL;	\
+		temp = realloc(vector->data, vector->current_size);	\
+			\
+		if (temp == NULL) {	\
+			return realloc_failed;	\
+		}	\
+			\
+		vector->max_size = vector->current_size;	\
+		vector->data = temp;	\
+		return 0;	\
+	}	\
+		\
 	void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
 		vector->destroy_vector = &destroy_c_vector_##DATA;	\
 		vector->add_top = &add_top_##DATA;	\
@@ -257,6 +277,7 @@
 		vector->insert = &insert_##DATA;	\
 		vector->value_at = &value_at_##DATA;	\
 		vector->resize = &resize_##DATA;	\
+		vector->shrink = &shrink_##DATA;	\
 	}	\
 	\
 	c_vector_##DATA *new_vector_##DATA(size_t number) {	\

@@ -8,7 +8,7 @@
 define_vector(int)
 
 int main(int argc, char *argv[]) {
-	printf("The size of data type: %ld\n", sizeof(int));
+	printf("The size of data type: %d\n", sizeof(int));
 	c_vector(int) *vector = NULL;
 	size_t currindex = 0;
 	size_t currsize = 0;
@@ -91,6 +91,18 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
 	}	
 
+	currindex = vector->get_current_index(vector);
+	currsize = vector->get_current_size(vector);
+	maxsize = vector->get_max_size(vector);
+	
+	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+	
+	code = vector->shrink(vector);
+	
+	if (code != 0) {
+		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+	}
+	
 	currindex = vector->get_current_index(vector);
 	currsize = vector->get_current_size(vector);
 	maxsize = vector->get_max_size(vector);
