@@ -44,7 +44,7 @@
  * OUTPUT: None
  * USAGE: define_vector(int)
  * NOTES: This must be called before the vector and associated functions are used. 
- * define_vector essentially creates a set a c_vector struct and a set of functions
+ * define_vector essentially defines a c_vector struct and a set of functions
  * for the given data type. Using the overall approach allows the generality and ease
  * of programming that comes with macros, along with the type safety and space efficiency
  * of functions (since you don't have the same code copied and pasted into main 100 times).
@@ -60,33 +60,31 @@
  * 
  * array_code add_top_##DATA(c_vector_##DATA *vector, DATA value)
  * INPUT: c_vector_##DATA* -> c_vector struct pointer, DATA -> value of given data type
- * OUTPUT: enum array_code to indicate error or success
+ * OUTPUT: enum array_code to indicate error or 0 to indicate success
  * USAGE: array_code code = vector->add_top(vector, value);
  * NOTES: This function is meant to mirror the vector's push_back method. If
  * new memory needs to be allocated, this function will zero the newly allocated
  * memory.
  * 
- * static inline void remove_top_##DATA(c_vector_##DATA *vector)
+ * remove_top_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: none
  * USAGE: vector->remove_top(vector);
  * NOTES: This function zeros the last value added into array and then decrements curr_index.
- * The function is inline because it is so small that a function call may not be worth it.
- * This allows the compiler to decide if it wants to just copy and paste.
  *
- * static inline size_t get_current_index_##DATA(c_vector_##DATA *vector)
+ * size_t get_current_index_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: value of c_vector's curr_index member
  * USAGE: size_t value = vector->get_current_index(vector);
  * NOTES: The current index is the next index available for the add_top function.
  * 
- * static inline size_t get_current_size_##DATA(c_vector_##DATA *vector)
+ * size_t get_current_size_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: current size of *data member
  * USAGE: size_t value = vector->get_current_size(vector);
  * NOTES: 
  *
- * static inline size_t get_max_size_##DATA(c_vector_##DATA *vector)
+ * size_t get_max_size_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: max size of *data member
  * USAGE: size_t value = vector->get_max_size(vector);
@@ -267,7 +265,7 @@
 		return 0;	\
 	}	\
 		\
-	void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
+	static inline void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
 		vector->destroy_vector = &destroy_c_vector_##DATA;	\
 		vector->add_top = &add_top_##DATA;	\
 		vector->get_current_index = &get_current_index_##DATA; \
