@@ -278,7 +278,7 @@
 	}	\
 		\
 	array_code shrink_##DATA(c_vector_##DATA* vector) {	\
-		if (vector->current_size == 0) {	\
+		if (vector->max_size == vector->current_size) {	\
 			return 0;	\
 		}	\
 			\
