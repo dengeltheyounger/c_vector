@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-// This is a convenient shorthand for typechecking
-#define check_types(A, B)	__builtin_types_compatible_p(typeof(A), typeof(B))
 
 // This can be used to get type information for a c_vector
 #define type_name(DATA_TYPE)	#DATA_TYPE
