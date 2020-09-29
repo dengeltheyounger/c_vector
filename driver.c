@@ -121,6 +121,18 @@ int main(int argc, char *argv[]) {
 	
 	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
 	
+	code = vector->shrink(vector);
+	
+	if (code != 0) {
+		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+	}
+	
+	currindex = vector->get_current_index(vector);
+	currsize = vector->get_current_size(vector);
+	maxsize = vector->get_max_size(vector);
+	
+	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+	
 	iterate_vector(vector, iter) {
 		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
 	}

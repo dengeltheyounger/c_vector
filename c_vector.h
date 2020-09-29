@@ -68,7 +68,8 @@
  * INPUT: c_vector_##DATA -> c_vector struct pointer
  * OUTPUT: none
  * USAGE: vector->remove_top(vector);
- * NOTES: This function zeros the last value added into array and then decrements curr_index.
+ * NOTES: This function uses memset to zero the given index
+ * This is important because the data type may not be primitive
  *
  * size_t get_current_index_##DATA(c_vector_##DATA *vector)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
@@ -99,8 +100,7 @@
  * INPUT: c_vector_##DATA -> c_vector struct pointer, size_t index -> index at which to insert
  * OUTPUT: value at index on success or 0 if index is out of bounds
  * USAGE: DATA value = vector->value_at(vector, index);
- * NOTES: This will return 0 on error. Depending on what's on the index provided,
- * this may or may not be an error
+ * NOTES: This will return the value at curr_index if the index is out of bounds
  * 
  * array_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum)
  * INPUT: c_vector_##DATA -> c_vector struct pointer
@@ -140,7 +140,7 @@
 		char *data_type; \
 		struct c_vector_##DATA *(*destroy_vector)(struct c_vector_##DATA*);	\
 		array_code (*add_top)(struct c_vector_##DATA*, DATA value);	\
-		void (*remove_top)(struct c_vector_##DATA*);	\
+		array_code (*remove_top)(struct c_vector_##DATA*);	\
 		size_t (*get_current_index)(struct c_vector_##DATA*);	\
 		size_t (*get_current_size)(struct c_vector_##DATA*);	\
 		size_t (*get_max_size)(struct c_vector_##DATA*);	\
@@ -190,12 +190,21 @@
 		return 0;	\
 	}	\
 		\
-	void remove_top_##DATA(c_vector_##DATA *vector) {	\
+	array_code remove_top_##DATA(c_vector_##DATA *vector) {	\
+		DATA *temp = NULL;	\
 		if (vector->curr_index == 0) {	\
-			return;	\
+			return 0;	\
 		}	\
-		vector->data[vector->curr_index - 1] = 0;	\
+		size_t index = vector->curr_index - 1;	\
+		temp = memset(&vector->data[index], 0, sizeof(DATA));	\
+			\
+		if (temp == NULL) {	\
+			return memset_failed;	\
+		}	\
+			\
+		vector->data = temp;	\
 		--(vector->curr_index);	\
+		return 0;	\
 	}	\
 	size_t get_current_index_##DATA(c_vector_##DATA *vector) {	\
 		return vector->curr_index;	\
@@ -227,7 +236,7 @@
 		\
 	DATA value_at_##DATA(c_vector_##DATA *vector, size_t index) {	\
 		if (index >= vector->curr_index) {	\
-			return 0;	\
+			return vector->data[vector->curr_index];	\
 		}	\
 			\
 		return vector->data[index];	\
