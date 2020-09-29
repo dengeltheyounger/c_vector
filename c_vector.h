@@ -202,7 +202,6 @@
 			return memset_failed;	\
 		}	\
 			\
-		vector->data = temp;	\
 		--(vector->curr_index);	\
 		return 0;	\
 	}	\
