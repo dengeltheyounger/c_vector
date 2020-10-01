@@ -60,5 +60,8 @@ int main() {
 	
 	printf("destroy_rbtree function testing successful\n");
 	
+	printf("Size of node: %ld bytes\n", sizeof(node(int,char)));
+	printf("Size of rb_tree struct: %ld bytes\n", sizeof(rb_tree(int, char)));
+	
 	return 0;
 }
