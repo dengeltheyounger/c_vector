@@ -3,6 +3,11 @@
 #include "c_vector.h"
 #include <stdlib.h>
 
+/* The internals of this c_map will be almost entirely replaced. 
+ * Instead of using an c_vector of internal maps, a red and black tree
+ * will be used to handle key value pairs.
+ */
+
 typedef enum map_code {
 	vector_allocate_failure
 } map_code;
@@ -59,6 +64,7 @@ typedef enum map_code {
 	}	\
 	
 #define c_map(K,V)	c_map_##K##_##V
+#define internal_map(K,V)	internal_map_##K##_##V
 #define	new_c_map(K, V)	new_map_##K##_##V()
 
 #endif

@@ -7,6 +7,17 @@
 
 define_vector(int)
 
+void print_byte(void *ptr, size_t size) {
+	unsigned char *temp = ptr;
+	
+	printf("\nByte value of struct: \n");
+	
+	while (size--)
+		printf("%02x", *temp--);
+		
+	printf("\n");
+}
+
 int main(int argc, char *argv[]) {
 	printf("The size of data type: %d\n", sizeof(int));
 	c_vector(int) *vector = NULL;
@@ -169,6 +180,8 @@ int main(int argc, char *argv[]) {
 	}
 	
 	printf("insert function test successful\n");
+	
+	print_byte(vector, sizeof(c_vector(int)));
 	
 	size_t vsize = sizeof(c_vector(int));
 
