@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include "red_black_tree.h"
 
-define_node(int, char)
 define_rbtree(int, char)
 
 int main() {
+	rbtree_code result = 0;
 	node(int, char) *node = NULL;
 	
 	printf("Testing new_node function\n");
@@ -35,6 +35,25 @@ int main() {
 	}
 	
 	printf("new_rbtree function testing successful\n");
+	
+	printf("Testing insert function\n");
+		
+	result = tree->insert(tree, 21,'a');
+	
+	if (result == new_node_failed) {
+		fprintf(stderr, "New node failed!\n");
+		return 1;
+	}
+	
+	result = tree->insert(tree, 22, 'b');
+	
+	if (result == new_node_failed) {
+		fprintf(stderr, "new node failed!\n");
+		return 1;
+	}
+	
+	printf("Insert function testing successful\n");
+	
 	printf("Testing destroy_tree function\n");
 	
 	tree = tree->destroy_rbtree(tree);
