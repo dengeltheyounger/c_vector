@@ -19,8 +19,9 @@ typedef enum color_t { BLACK, RED } color_t;
 
 typedef enum rbtree_code {
 	realloc_failed = 1,
-	set_sentinels_failed,
+	make_sentinels_failed,
 	new_node_failed,
+	basic_insert_failed,
 	memcpy_failed
 } rbtree_code;
 
@@ -41,9 +42,7 @@ typedef enum rbtree_code {
  * OUTPUT: none
  * USAGE: node->set_sentinels(node);
  * NOTES: This is used internally to initialize sentinel nodes. It will
- * not test to see if the sentinel nodes already exist. The keys and values
- * of the sentinels are zeroed using memset. This may be removed if it
- * is decided to be too expensive
+ * not test to see if the sentinel nodes already exist.
  * 
  * node(K,V) *new_node_##K##_##V()
  * INPUT: none
@@ -61,7 +60,7 @@ typedef struct node_##K##_##V {	\
 	struct node_##K##_##V *rchild;	\
 	struct node_##K##_##V *lchild;	\
 	struct node_##K##_##V *(*destroy_node)(struct node_##K##_##V*);	\
-	rbtree_code (*set_sentinels)(struct node_##K##_##V*);	\
+	rbtree_code (*set_sentinels)(struct node_##K##_##V*, struct node_##K##_##V*);	\
 } node_##K##_##V;	\
 	\
 node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
@@ -79,36 +78,25 @@ node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
 	return NULL;	\
 }	\
 	\
-rbtree_code set_sentinels_##K##_##V(node(K,V) *node) {	\
-	node->rchild = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
+static inline rbtree_code make_sentinel_##K##_##V(node(K,V) *node) {	\
+	node = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
 	\
-	if (node->rchild == NULL) {	\
-		return set_sentinels_failed;	\
+	if (node == NULL) {	\
+		return make_sentinels_failed;	\
 	}	\
 		\
-	node->lchild = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
-	\
-	if (node->lchild == NULL) {	\
-		free(node->rchild);	\
-		return set_sentinels_failed;	\
-	}	\
-	node->rchild->color = BLACK;	\
-	node->rchild->parent = node;	\
-	node->rchild->rchild = NULL;	\
-	node->rchild->lchild = NULL;	\
-	node->lchild->color = BLACK;	\
-	node->lchild->parent = node;	\
-	node->lchild->rchild = NULL;	\
-	node->lchild->lchild = NULL;	\
-	node->rchild->key = memset(&(node->rchild->key), 0, sizeof(K));	\
-	node->rchild->value = memset(&(node->rchild->value), 0, sizeof(V));	\
-	node->lchild->key = memset(&(node->lchild->key), 0, sizeof(K));	\
-	node->lchild->value = memset(&(node->lchild->value), 0, sizeof(V));	\
-	node->rchild->set_sentinels = &set_sentinels_##K##_##V;	\
-	node->lchild->set_sentinels = &set_sentinels_##K##_##V;	\
-	node->rchild->destroy_node = &destroy_node_##K##_##V;	\
-	node->lchild->destroy_node = &destroy_node_##K##_##V;	\
 	return 0;	\
+}	\
+	\
+rbtree_code set_sentinels_##K##_##V(node(K,V) *node, node(K,V) *sentinel) {	\
+	rbtree_code result;	\
+	if (sentinel == NULL) {	\
+		result = make_sentinel_##K##_##V(sentinel);
+		if (result != 0)	\
+			return result;	\
+	}						\
+	node->rchild = sentinel;	\
+	node->lchild = sentinel;	\
 }	\
 	\
 node(K,V) *new_node_##K##_##V() {	\
@@ -120,12 +108,7 @@ node(K,V) *new_node_##K##_##V() {	\
 		return NULL;	\
 	}	\
 		\
-	result = set_sentinels_##K##_##V(node);	\
-	if (result != 0) {	\
-		free(node);	\
-		return NULL;	\
-	}	\
-	node->parent = NULL;	\
+	node->color = RED;	\
 	node->destroy_node = &destroy_node_##K##_##V;	\
 	node->set_sentinels = &set_sentinels_##K##_##V;	\
 	return node;	\
@@ -137,23 +120,16 @@ node(K,V) *new_node_##K##_##V() {	\
  * USAGE: define_rbtree(int, char)
  * NOTES: This is used internally by c_map
  * 
- * static inline int compare_keys_##K##_##V(K k, node(K,V) *node)
- * INPUT: K k -> key of given type, node(K,V) *node -> node pointer of type K,V
- * OUTPUT: -1 if k is greater, 1 if node->key is greater, or 0 if equal
- * USAGE: int result = compare_keys_##K##_##V(k, node);
- * NOTES: For internal use. node is passed in order to let the function
- * handle dereferencing
- * 
- * static inline void rotate_left_##K##_##V(rb_tree(K,V) *root, rb_tree(K,V) *rchild)
- * INPUT: rb_tree(K,V) *root -> root node of subtree, rb_tree(K,V) *rchild -> right child of subtree
+ * static inline void rotate_left_##K##_##V(node(K,V) *root, node(K,V) *rchild)
+ * INPUT: node(K,V) *root -> root node of subtree, node(K,V) *rchild -> right child of subtree
  * OUTPUT: none
  * USAGE: rotate_left_##K##_##V(root, root->rchild)
  * NOTES: This will do a left rotate of tree. rchild becomes root
  * root becomes lchild, and the original lchild of rchild becomes the
  * rchild of root
  * 
- * static inline void rotate_right_##K##_##V(rb_tree(K,V) *root, rb_tree(K,V) *lchild)
- * INPUT: rb_tree(K,V) *root -> root node of subtree, rb_tree(K,V) *lchild -> left child of subtree
+ * static inline void rotate_right_##K##_##V(node(K,V) *root, node(K,V) *lchild)
+ * INPUT: node(K,V) *root -> root node of subtree, node(K,V) *lchild -> left child of subtree
  * OUTPUT none
  * USAGE: rotate_right_##K##_##V(root, lchild);
  * NOTES: This  will do a right rotate of tree. lchild becomes root
@@ -183,72 +159,158 @@ node(K,V) *new_node_##K##_##V() {	\
 define_node(K,V)	\
 typedef struct rb_tree_##K##_##V {	\
 	node(K,V) *root;	\
+	node(K,V) *sentinel;	\
 	struct rb_tree_##K##_##V *(*destroy_rbtree)(struct rb_tree_##K##_##V*);	\
 	rbtree_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
 } rb_tree_##K##_##V;	\
 	\
 	\
-static inline int compare_keys_##K##_##V(K k, node(K,V) *node) {	\
-	return (memcmp(&k, &(node->key), sizeof(K)));	\
+static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+	node(K,V) *pivot = node->rchild;	\
+	node(K,V) *root = node;	\
+	root->rchild = pivot->lchild;	\
+	pivot->lchild->parent = root;	\
+	pivot->lchild = root;	\
+	pivot->parent = root->parent;	\
+	root->parent = pivot;	\
+	root = pivot;	\
+	if (root->lchild == tree->root)	\
+		tree->root = root;	\
 }	\
 	\
-static inline void rotate_left_##K##_##V(rb_tree(K,V) *root, rb_tree(K,V) *rchild) {	\
-	rb_tree(K,V) *temp = root;	\
-	root = rchild;	\
-	temp->rchild = root->lchild;	\
-	root->lchild = temp;	\
-}	\
-	\
-static inline void rotate_right_##K##_##V(rb_tree(K,V) *root, rb_tree(K,V) *lchild) {	\
-	rb_tree(K,V) *temp = root;	\
-	root = lchild;	\
-	temp->lchild = root->rchild;	\
-	root->rchild = temp;	\
+static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+	node(K,V) *pivot = node->lchild;	\
+	node(K,V) *root = node;	\
+	root->lchild = pivot->rchild;	\
+	pivot->rchild->parent = root;	\
+	pivot->rchild = root;	\
+	pivot->parent = root->parent;	\
+	root->parent = pivot;	\
+	root = pivot;	\
+	if (root->rchild == tree->root)
+		tree->root = root;	\
 }	\
 	\
 rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree) {	\
 	if (tree != NULL) {	\
 		if (tree->root != NULL)	\
 			tree->root->destroy_node(tree->root);	\
+		if (tree->sentinel != NULL)	\
+			free(tree->sentinel);	\
 		free(tree);	\
 	}	\
 	return NULL;	\
 }	\
 	\
-rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
-	node(K,V) *iter = tree->root;	\
-	node(K,V) *previous = NULL;	\
-	if (iter == NULL) {	\
-		iter = new_node(K,V);	\
-		if (iter == NULL)	\
-			return new_node_failed;	\
-		\
-		iter->key = key;	\
-		iter->value = value;	\
-		tree->root = iter;	\
+static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
+	node(K,V) *node = tree->root;	\
+	node(K,V) *temp = NULL;	\
+	K nkey;	\
+	int result = 0;	\
+	if (tree->root == NULL) {	\
+		temp = new_node(K,V);	\
+		if (temp == NULL)	\
+			return NULL;	\
+		temp->set_sentinels(temp, tree->sentinel);	\
+		tree->root = temp;	\
+		return tree->root;	\
 	}	\
 		\
-	while (iter != NULL) {	\
-		previous = iter;	\
-		if (compare_keys_##K##_##V(key, iter) == 0) {	\
-			iter->value = value;	\
-			return 0;	\
+	while (true) {	\
+		nkey = node->key;
+		result = memcmp(&key, &nkey, sizeof(K));
+		if (result == 0) {	\
+			node->value = value;	\
+			return node;	\
 		}	\
-		else if (compare_keys_##K##_##V(key, iter) < 0)	\
-			iter = iter->lchild;	\
-		\
-		else if (compare_keys_##K##_##V(key, iter) > 0)	\
-			iter = iter->rchild;	\
-		\
+		else if (result < 0) {	\
+			temp = node->lchild;	\
+		}	\
+		else {	\
+			temp = node->rchild;	\
+		}	\
+			\
+		if (temp == tree->sentinel)	\
+			break;	\
 	}	\
+	temp = new_node(K,V);	\
 		\
-	node(K,V) *next = new_node(K,V);	\
-	if (next == NULL) 	\
-		return new_node_failed;	\
-	next->key = key;	\
-	next->value = value;	\
-	next->parent = iter;	\
-	(compare_keys_##K##_##V(key, previous) < 0) ? (previous->lchild = next) : (previous->rchild = next);	\
+	if (temp == NULL)	\
+		return NULL;	\
+	temp->set_sentinels(temp, tree->sentinel);	\
+	temp->key = key;	\
+	temp->value = value;	\
+	temp->parent = node;	\
+	(result > 0) ? (node->rchild = temp) : (node->lchild = temp);	\
+	return temp;	\
+}	\
+	\
+static inline node(K,V) *parent(node(K,V) *node) {	\
+	return node == NULL ? NULL : node->parent;	\
+}	\
+static inline node(K,V) *grandparent(node(K,V) *node) {	\
+	node(K,V) p = parent(node);	\
+	return parent(p);	\
+}	\
+static inline node(K,V) *sibling(node(K,V) *node) {	\
+	node(K,V) *p = parent(node);	\
+	if (p == NULL)	\
+		return NULL;	\
+	return node == p->left ? p->right : p->left;	\
+}	\
+static inline node(K,V) *uncle(node(K,V) *node) {	\
+	node(K,V) *p = parent(node);	\
+	node(K,V) *s = sibling(p);	\
+	return s;	\
+}	\
+static inline color_t uncle_color(node(K,V) *node) {	\
+	node(K,V) *u = uncle(node);	\
+	return (u->color == RED) ? RED : BLACK;	\
+}	\
+static inline bool recolor_##K##_##V(node(K,V) *node) {	\
+	node(K,V) *p = parent(node);	\
+	node(K,V) *u = uncle(node);	\
+	node(K,V) *g = grandparent(node):	\
+	p->color = BLACK;	\
+	u->color = BLACK;	\
+	g->color = RED;	\
+}	\
+	\
+static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+	node(K,V) *p = parent(node);	\
+	node(K,V) *g = grandparent(node);	\
+	if (node == p->right && p == g->left)
+		rotate_right_##K##_##V(tree, p);	\
+	else if (node == p->left && p == g->right)	\
+		rotate_left_##K##_##V(tree, p);	\
+	/* finish this */	\
+}	\
+	\
+static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	while (true) {	\
+		if (temp->parent->color == BLACK)	\
+			return;	\
+		else if (temp->parent == NULL) {	\
+			temp->color = BLACK;	\
+			return;	\
+		}	\
+		else if (uncle(node) != NULL && uncle_color(node) == RED) {	\
+			temp = grandparent(temp);	\
+			recolor_##K##_##V(node);	\
+		}	\
+		else if (uncle(node) != NULL && uncle_color(node) == BLACK) {	\
+			rotate_##K##_##V(tree, node);	\
+			return;	\
+		}	\
+	}	\
+}	\
+	\
+rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
+	node(K,V) *temp = basic_insert_##K##_##V(tree, key, value);	\
+	if (temp == NULL)	\
+		return basic_insert_failed;	\
+	repair_tree_##K##_##V(tree, node);	\
 	return 0;	\
 }	\
 	\
@@ -266,6 +328,7 @@ rb_tree(K,V) *new_rbtree_##K##_##V() {	\
 		return NULL;	\
 	}	\
 	tree->root = NULL;	\
+	tree->sentinel = NULL;	\
 	set_rbtree_ptr_##K##_##V(tree);	\
 	return tree;	\
 }	\
