@@ -41,7 +41,9 @@ typedef enum rbtree_code {
  * OUTPUT: none
  * USAGE: node->set_sentinels(node);
  * NOTES: This is used internally to initialize sentinel nodes. It will
- * not test to see if the sentinel nodes already exist
+ * not test to see if the sentinel nodes already exist. The keys and values
+ * of the sentinels are zeroed using memset. This may be removed if it
+ * is decided to be too expensive
  * 
  * node(K,V) *new_node_##K##_##V()
  * INPUT: none
@@ -98,6 +100,10 @@ rbtree_code set_sentinels_##K##_##V(node(K,V) *node) {	\
 	node->lchild->parent = node;	\
 	node->lchild->rchild = NULL;	\
 	node->lchild->lchild = NULL;	\
+	node->rchild->key = memset(&(node->rchild->key), 0, sizeof(K));	\
+	node->rchild->value = memset(&(node->rchild->value), 0, sizeof(V));	\
+	node->lchild->key = memset(&(node->lchild->key), 0, sizeof(K));	\
+	node->lchild->value = memset(&(node->lchild->value), 0, sizeof(V));	\
 	node->rchild->set_sentinels = &set_sentinels_##K##_##V;	\
 	node->lchild->set_sentinels = &set_sentinels_##K##_##V;	\
 	node->rchild->destroy_node = &destroy_node_##K##_##V;	\
@@ -131,6 +137,29 @@ node(K,V) *new_node_##K##_##V() {	\
  * USAGE: define_rbtree(int, char)
  * NOTES: This is used internally by c_map
  * 
+ * static inline int compare_keys_##K##_##V(K k, node(K,V) *node)
+ * INPUT: K k -> key of given type, node(K,V) *node -> node pointer of type K,V
+ * OUTPUT: -1 if k is greater, 1 if node->key is greater, or 0 if equal
+ * USAGE: int result = compare_keys_##K##_##V(k, node);
+ * NOTES: For internal use. node is passed in order to let the function
+ * handle dereferencing
+ * 
+ * static inline void rotate_left_##K##_##V(rb_tree(K,V) *root, rb_tree(K,V) *rchild)
+ * INPUT: rb_tree(K,V) *root -> root node of subtree, rb_tree(K,V) *rchild -> right child of subtree
+ * OUTPUT: none
+ * USAGE: rotate_left_##K##_##V(root, root->rchild)
+ * NOTES: This will do a left rotate of tree. rchild becomes root
+ * root becomes lchild, and the original lchild of rchild becomes the
+ * rchild of root
+ * 
+ * static inline void rotate_right_##K##_##V(rb_tree(K,V) *root, rb_tree(K,V) *lchild)
+ * INPUT: rb_tree(K,V) *root -> root node of subtree, rb_tree(K,V) *lchild -> left child of subtree
+ * OUTPUT none
+ * USAGE: rotate_right_##K##_##V(root, lchild);
+ * NOTES: This  will do a right rotate of tree. lchild becomes root
+ * root becomes rchild, and the original rchild of lchild becomes the
+ * lchild of root
+ * 
  * rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree)
  * INPUT: rb_tree(K,V) *tree -> red black tree struct of given key and value data types
  * OUTPUT: rb_tree(K,V) * -> pointer to red black tree struct
@@ -159,8 +188,22 @@ typedef struct rb_tree_##K##_##V {	\
 } rb_tree_##K##_##V;	\
 	\
 	\
-static inline int compare_keys(K k, node(K,V) *node) {	\
+static inline int compare_keys_##K##_##V(K k, node(K,V) *node) {	\
 	return (memcmp(&k, &(node->key), sizeof(K)));	\
+}	\
+	\
+static inline void rotate_left_##K##_##V(rb_tree(K,V) *root, rb_tree(K,V) *rchild) {	\
+	rb_tree(K,V) *temp = root;	\
+	root = rchild;	\
+	temp->rchild = root->lchild;	\
+	root->lchild = temp;	\
+}	\
+	\
+static inline void rotate_right_##K##_##V(rb_tree(K,V) *root, rb_tree(K,V) *lchild) {	\
+	rb_tree(K,V) *temp = root;	\
+	root = lchild;	\
+	temp->lchild = root->rchild;	\
+	root->rchild = temp;	\
 }	\
 	\
 rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree) {	\
@@ -187,14 +230,14 @@ rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 		\
 	while (iter != NULL) {	\
 		previous = iter;	\
-		if (compare_keys(key, iter) == 0) {	\
+		if (compare_keys_##K##_##V(key, iter) == 0) {	\
 			iter->value = value;	\
 			return 0;	\
 		}	\
-		else if (compare_keys(key, iter) < 0)	\
+		else if (compare_keys_##K##_##V(key, iter) < 0)	\
 			iter = iter->lchild;	\
 		\
-		else if (compare_keys(key, iter) > 0)	\
+		else if (compare_keys_##K##_##V(key, iter) > 0)	\
 			iter = iter->rchild;	\
 		\
 	}	\
@@ -205,7 +248,7 @@ rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	next->key = key;	\
 	next->value = value;	\
 	next->parent = iter;	\
-	(compare_keys(key, previous) < 0) ? (previous->lchild = next) : (previous->rchild = next);	\
+	(compare_keys_##K##_##V(key, previous) < 0) ? (previous->lchild = next) : (previous->rchild = next);	\
 	return 0;	\
 }	\
 	\
