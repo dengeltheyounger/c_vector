@@ -37,6 +37,8 @@ int main() {
 	printf("new_rbtree function testing successful\n");
 	
 	printf("Testing insert function\n");
+	
+	printf("First insert...\n");
 		
 	result = tree->insert(tree, 21,'a');
 	
@@ -44,6 +46,8 @@ int main() {
 		fprintf(stderr, "New node failed!\n");
 		return 1;
 	}
+	
+	printf("Second insert...\n");
 	
 	result = tree->insert(tree, 22, 'b');
 	
@@ -53,6 +57,8 @@ int main() {
 	}
 	
 	printf("Insert function testing successful\n");
+	
+	tree->inorder_traverse(tree, tree->root);
 	
 	printf("Testing destroy_tree function\n");
 	

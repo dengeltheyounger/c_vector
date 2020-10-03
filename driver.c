@@ -1,4 +1,9 @@
+#ifdef __GNUG__
+#include <cstdio>
+#include <vector>
+#else
 #include <stdio.h>
+#endif
 #include "c_vector.h"
 
 // driver code for the c_vector
@@ -7,17 +12,6 @@
 
 define_vector(int)
 
-void print_byte(void *ptr, size_t size) {
-	unsigned char *temp = ptr;
-	
-	printf("\nByte value of struct: \n");
-	
-	while (size--)
-		printf("%02x", *temp--);
-		
-	printf("\n");
-}
-
 int main(int argc, char *argv[]) {
 	printf("The size of data type: %d\n", sizeof(int));
 	c_vector(int) *vector = NULL;
@@ -25,7 +19,7 @@ int main(int argc, char *argv[]) {
 	size_t currsize = 0;
 	size_t maxsize = 0;
 	size_t iter = 0;
-	array_code code = 0;
+	array_code code = success;
 	
 	printf("Testing int vector creation\n");
 	vector = new_c_vector(int, 0);
@@ -180,9 +174,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	printf("insert function test successful\n");
-	
-	print_byte(vector, sizeof(c_vector(int)));
-	
+		
 	size_t vsize = sizeof(c_vector(int));
 
 	printf("Size of vector is %ld bytes.\n", vsize);
@@ -190,6 +182,12 @@ int main(int argc, char *argv[]) {
 	printf("Testing destroy_vector function\n");
 	vector->destroy_vector(vector);
 	printf("destroy vector_function test successful\n");
-	
+
+#ifdef __GNUG__
+	printf("size of cpp vector %ld: \n", sizeof(std::vector<int>));
 	return 0;
 }
+#else
+	return 0;
+}
+#endif

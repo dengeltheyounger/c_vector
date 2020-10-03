@@ -60,11 +60,14 @@ typedef struct node_##K##_##V {	\
 	struct node_##K##_##V *rchild;	\
 	struct node_##K##_##V *lchild;	\
 	struct node_##K##_##V *(*destroy_node)(struct node_##K##_##V*);	\
-	rbtree_code (*set_sentinels)(struct node_##K##_##V*, struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*set_sentinels)(struct node_##K##_##V*, struct node_##K##_##V*);	\
 } node_##K##_##V;	\
 	\
 node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
 	if (node == NULL) \
+		return NULL;	\
+	/* only a sentinel will have null function pointers. the tree will take care of this */ \
+	else if (node->set_sentinels == NULL && node->destroy_node == NULL)	\
 		return NULL;	\
 						\
 	if (node->rchild != NULL) {	\
@@ -74,33 +77,32 @@ node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
 	if (node->lchild != NULL) \
 		node->lchild = destroy_node_##K##_##V(node->lchild);	\
 	\
+	fprintf(stderr, "Address of node being freed: %p\n", (void*) node);	\
 	free(node);	\
 	return NULL;	\
 }	\
 	\
-static inline rbtree_code make_sentinel_##K##_##V(node(K,V) *node) {	\
-	node = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
+static inline node(K,V) *make_sentinel_##K##_##V() {	\
+	node(K,V) *node = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
+	fprintf(stderr, "Address of sentinel in make_sentinel: %p\n", (void*) node);	\
 	\
-	if (node == NULL) {	\
-		return make_sentinels_failed;	\
-	}	\
-		\
-	return 0;	\
+	return node;	\
 }	\
 	\
-rbtree_code set_sentinels_##K##_##V(node(K,V) *node, node(K,V) *sentinel) {	\
-	rbtree_code result;	\
+node(K,V) *set_sentinels_##K##_##V(node(K,V) *node, node(K,V) *sentinel) {	\
 	if (sentinel == NULL) {	\
-		result = make_sentinel_##K##_##V(sentinel);
-		if (result != 0)	\
-			return result;	\
+		fprintf(stderr, "sentinel is null, creating a new one\n");	\
+		sentinel = make_sentinel_##K##_##V(sentinel);	\
+		fprintf(stderr, "Address of sentinel in set_sentinels: %p\n", (void *) sentinel);	\
+		if (sentinel == NULL)	\
+			return NULL;	\
 	}						\
 	node->rchild = sentinel;	\
 	node->lchild = sentinel;	\
+	return sentinel;	\
 }	\
 	\
 node(K,V) *new_node_##K##_##V() {	\
-	rbtree_code result;	\
 	node(K,V) *node = NULL;	\
 	\
 	node = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
@@ -162,6 +164,7 @@ typedef struct rb_tree_##K##_##V {	\
 	node(K,V) *sentinel;	\
 	struct rb_tree_##K##_##V *(*destroy_rbtree)(struct rb_tree_##K##_##V*);	\
 	rbtree_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
+	void (*inorder_traverse)(struct rb_tree_##K##_##V *, node(K,V) *);	\
 } rb_tree_##K##_##V;	\
 	\
 	\
@@ -187,7 +190,7 @@ static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {
 	pivot->parent = root->parent;	\
 	root->parent = pivot;	\
 	root = pivot;	\
-	if (root->rchild == tree->root)
+	if (root->rchild == tree->root)	\
 		tree->root = root;	\
 }	\
 	\
@@ -196,6 +199,7 @@ rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree) {	\
 		if (tree->root != NULL)	\
 			tree->root->destroy_node(tree->root);	\
 		if (tree->sentinel != NULL)	\
+			fprintf(stderr, "Address of sentinel: %p\n", (void *) tree->sentinel);	\
 			free(tree->sentinel);	\
 		free(tree);	\
 	}	\
@@ -207,28 +211,29 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	node(K,V) *temp = NULL;	\
 	K nkey;	\
 	int result = 0;	\
-	if (tree->root == NULL) {	\
+	if (node == NULL) {	\
+		fprintf(stderr, "root node is null. Creating\n");	\
 		temp = new_node(K,V);	\
 		if (temp == NULL)	\
 			return NULL;	\
-		temp->set_sentinels(temp, tree->sentinel);	\
+		temp->key = key;	\
+		temp->value = value;	\
+		tree->sentinel = temp->set_sentinels(temp, tree->sentinel);	\
 		tree->root = temp;	\
 		return tree->root;	\
 	}	\
 		\
 	while (true) {	\
-		nkey = node->key;
-		result = memcmp(&key, &nkey, sizeof(K));
+		nkey = node->key;	\
+		result = memcmp(&key, &nkey, sizeof(K));	\
 		if (result == 0) {	\
 			node->value = value;	\
 			return node;	\
 		}	\
-		else if (result < 0) {	\
+		else if (result < 0)	\
 			temp = node->lchild;	\
-		}	\
-		else {	\
+		else	\
 			temp = node->rchild;	\
-		}	\
 			\
 		if (temp == tree->sentinel)	\
 			break;	\
@@ -240,8 +245,12 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	temp->set_sentinels(temp, tree->sentinel);	\
 	temp->key = key;	\
 	temp->value = value;	\
+	fprintf(stderr, "Address of temp %p\n", (void *) temp);	\
 	temp->parent = node;	\
+	fprintf(stderr, "Address of temp's parent %p\n", (void *) node);	\
+	fprintf(stderr, "Address of node: %p\n", (void *) node);	\
 	(result > 0) ? (node->rchild = temp) : (node->lchild = temp);	\
+	fprintf(stderr, "Address of node's child: %p\n", (void *) ((result > 0) ? node->rchild : node->lchild));	\
 	return temp;	\
 }	\
 	\
@@ -249,14 +258,14 @@ static inline node(K,V) *parent(node(K,V) *node) {	\
 	return node == NULL ? NULL : node->parent;	\
 }	\
 static inline node(K,V) *grandparent(node(K,V) *node) {	\
-	node(K,V) p = parent(node);	\
+	node(K,V) *p = parent(node);	\
 	return parent(p);	\
 }	\
 static inline node(K,V) *sibling(node(K,V) *node) {	\
 	node(K,V) *p = parent(node);	\
 	if (p == NULL)	\
 		return NULL;	\
-	return node == p->left ? p->right : p->left;	\
+	return node == p->lchild ? p->rchild : p->lchild;	\
 }	\
 static inline node(K,V) *uncle(node(K,V) *node) {	\
 	node(K,V) *p = parent(node);	\
@@ -267,40 +276,51 @@ static inline color_t uncle_color(node(K,V) *node) {	\
 	node(K,V) *u = uncle(node);	\
 	return (u->color == RED) ? RED : BLACK;	\
 }	\
-static inline bool recolor_##K##_##V(node(K,V) *node) {	\
+static inline void recolor_##K##_##V(node(K,V) *node) {	\
 	node(K,V) *p = parent(node);	\
 	node(K,V) *u = uncle(node);	\
-	node(K,V) *g = grandparent(node):	\
+	node(K,V) *g = grandparent(node);	\
 	p->color = BLACK;	\
 	u->color = BLACK;	\
 	g->color = RED;	\
 }	\
 	\
 static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *p = parent(node);	\
-	node(K,V) *g = grandparent(node);	\
-	if (node == p->right && p == g->left)
+	node(K,V) *root = node;	\
+	node(K,V) *p = parent(root);	\
+	node(K,V) *g = grandparent(root);	\
+	if (root == p->rchild && p == g->lchild) {	\
 		rotate_right_##K##_##V(tree, p);	\
-	else if (node == p->left && p == g->right)	\
+		root = root->lchild;	\
+	}	\
+	else if (root == p->lchild && p == g->rchild) {	\
 		rotate_left_##K##_##V(tree, p);	\
-	/* finish this */	\
+		root = root->rchild;	\
+	}	\
+		\
+	if (root == p->lchild)	\
+		rotate_right_##K##_##V(tree, g);	\
+	else 	\
+		rotate_left_##K##_##V(tree, g);	\
+	p->color = BLACK;	\
+	g->color = RED;	\
 }	\
 	\
 static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
 	while (true) {	\
-		if (temp->parent->color == BLACK)	\
-			return;	\
-		else if (temp->parent == NULL) {	\
+		if (temp->parent == NULL) {	\
 			temp->color = BLACK;	\
 			return;	\
 		}	\
-		else if (uncle(node) != NULL && uncle_color(node) == RED) {	\
+		else if (temp->parent->color == BLACK)	\
+			return;	\
+		else if (uncle(temp) != NULL && uncle_color(temp) == RED) {	\
 			temp = grandparent(temp);	\
-			recolor_##K##_##V(node);	\
+			recolor_##K##_##V(temp);	\
 		}	\
-		else if (uncle(node) != NULL && uncle_color(node) == BLACK) {	\
-			rotate_##K##_##V(tree, node);	\
+		else if (uncle(temp) != NULL && uncle_color(temp) == BLACK) {	\
+			rotate_##K##_##V(tree, temp);	\
 			return;	\
 		}	\
 	}	\
@@ -308,15 +328,26 @@ static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	
 	\
 rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	node(K,V) *temp = basic_insert_##K##_##V(tree, key, value);	\
+	fprintf(stderr, "Address of node being returned %p\n", (void *) temp);	\
 	if (temp == NULL)	\
 		return basic_insert_failed;	\
-	repair_tree_##K##_##V(tree, node);	\
+	repair_tree_##K##_##V(tree, temp);	\
 	return 0;	\
+}	\
+	\
+void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
+	/* Only the sentinel has function pointers set to null */	\
+	if (node->set_sentinels == NULL && node->destroy_node == NULL)	\
+		return;	\
+	inorder_traverse_##K##_##V(tree, node->lchild);	\
+	printf("Key: %d, Value: %c\n", node->key, node->value);	\
+	inorder_traverse_##K##_##V(tree, node->rchild);	\
 }	\
 	\
 void set_rbtree_ptr_##K##_##V(rb_tree(K,V) *tree) {	\
 	tree->destroy_rbtree = &destroy_rbtree_##K##_##V;	\
 	tree->insert = &insert_##K##_##V;	\
+	tree->inorder_traverse = &inorder_traverse_##K##_##V;	\
 }	\
 	\
 rb_tree(K,V) *new_rbtree_##K##_##V() {	\
@@ -327,8 +358,6 @@ rb_tree(K,V) *new_rbtree_##K##_##V() {	\
 	if (tree == NULL) {	\
 		return NULL;	\
 	}	\
-	tree->root = NULL;	\
-	tree->sentinel = NULL;	\
 	set_rbtree_ptr_##K##_##V(tree);	\
 	return tree;	\
 }	\
