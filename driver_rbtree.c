@@ -49,7 +49,15 @@ int main() {
 	
 	printf("Second insert...\n");
 	
-	result = tree->insert(tree, 22, 'b');
+	result = tree->insert(tree, 24, 'b');
+
+	if (result == new_node_failed) {
+		fprintf(stderr, "New node failed!\n");
+	}
+
+	printf("Testing third insert for rebalancing\n");
+
+	result = tree->insert(tree, 23, 'c');
 	
 	if (result == new_node_failed) {
 		fprintf(stderr, "new node failed!\n");
