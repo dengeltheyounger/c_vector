@@ -14,6 +14,8 @@ int main() {
 	char value;
 	node(int, char) *node = NULL;
 	
+	printf("Endianness of machine: %s\n", (ENDIANNESS == BIG) ? "BIG" : "LITTLE");
+
 	fprintf(stderr, "Testing new_node function\n");
 	
 	node = new_node(int, char);

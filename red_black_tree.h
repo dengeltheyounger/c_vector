@@ -201,16 +201,39 @@ rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree) {	\
 	return NULL;	\
 }	\
 	\
-static inline bool to_little_endian_##K##_##V(const char *k, const char *nkey, char *kb, char *nkb)	{	\
-	if (ENDIANNESS == LITTLE)	\
-		return true;	\
-	 else if (ENDIANNESS == BIG) {	\
-		for (size_t i = 0, j = sizeof(K) -1; i < sizeof(K); ++i, --j) {	\
-			kb[i] = k[j];	\
-			nkb[i] = nkey[j];	\
-		}	\
+static inline void print_bytes(const void *key, size_t bytes) {	\
+	unsigned char *temp = (unsigned char *) key;	\
+	for (size_t i = 0; i < bytes; ++i) 	\
+		printf("%02x", temp[i]);	\
+	\
+	printf("\n");	\
+}	\
+/* memcmp does not account for endianness. This could mess up the insert function */	\
+/* For that reason, I've written a function that will not only compare the byte values */	\
+/* of the key, but also account for endianness. */	\
+static inline int compare_little_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {	\
+	for (size_t i = bytes - 1; i >= 0; --i) {	\
+		if (key[i] > nkey[i])	\
+			return 1;	\
+		else if (key[i] < nkey[i])	\
+			return -1;	\
 	}	\
-	return false;	\
+	return 0;	\
+}	\
+static inline int compare_big_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {	\
+	for (size_t i = 0; i < bytes; ++i) {	\
+		if (key[i] >  nkey[i])	\
+			return 1;	\
+		else if (key[i] <  nkey[i])	\
+			return -1;	\
+	}	\
+	return 0;	\
+}	\
+static inline int compare_bytes(const void *key, const void *nkey, size_t bytes) {	\
+	if (ENDIANNESS == LITTLE)	\
+		return compare_little_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);	\
+	else	\
+		return compare_big_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);	\
 }	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	node(K,V) *node = tree->root;	\
@@ -229,18 +252,15 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 		return tree->root;	\
 	}	\
 		\
-	char *kbuff = (char *) malloc(sizeof(char));	\
-	char *nkbuff = (char *) malloc(sizeof(char));	\
 	while (true) {	\
 		node = temp;	\
 		nkey = node->key;	\
-		end = to_little_endian_##K##_##V((char *) &key, (char *) &nkey, kbuff, nkbuff);	\
-		if (!end) {	\
-			result = memcmp(&kbuff, &nkbuff, sizeof(K));	\
-		} else {	\
-			result = memcmp(&key, &value, sizeof(K));	\
-		}	\
-		fprintf(stdout, "Result of memcmp for %d, %d: %d\n", key, nkey, result);	\
+		printf("Key: ");	\
+		print_bytes(&key, sizeof(K));	\
+		printf("Nkey: ");	\
+		print_bytes(&nkey, sizeof(K));	\
+		result = compare_bytes(&key, &nkey, sizeof(K));	\
+		printf("Result of comparing %d, %d: %d\n", key, nkey, result);	\
 		if (result == 0) {	\
 			node->value = value;	\
 			return node;	\
@@ -256,8 +276,6 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 			break;	\
 		}	\
 	}	\
-	free(kbuff);	\
-	free(nkbuff);	\
 	temp = new_node(K,V);	\
 		\
 	if (temp == NULL)	\
