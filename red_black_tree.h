@@ -6,6 +6,9 @@
 #include <string.h>
 #include <stdbool.h>
 
+#define PRINT_COLOR(NODE)	printf("%s", NODE->color == RED ? "RED" : "BLACK")
+
+
 typedef struct error_info {
 	char *functname;
 	char *line;
@@ -77,14 +80,12 @@ node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
 	if (node->lchild != NULL) \
 		node->lchild = destroy_node_##K##_##V(node->lchild);	\
 	\
-	fprintf(stderr, "Address of node being freed: %p\n", (void*) node);	\
 	free(node);	\
 	return NULL;	\
 }	\
 	\
 static inline node(K,V) *make_sentinel_##K##_##V() {	\
 	node(K,V) *node = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
-	fprintf(stderr, "Address of sentinel in make_sentinel: %p\n", (void*) node);	\
 	node->color = BLACK;	\
 	\
 	return node;	\
@@ -94,7 +95,6 @@ node(K,V) *set_sentinels_##K##_##V(node(K,V) *node, node(K,V) *sentinel) {	\
 	if (sentinel == NULL) {	\
 		fprintf(stderr, "sentinel is null, creating a new one\n");	\
 		sentinel = make_sentinel_##K##_##V(sentinel);	\
-		fprintf(stderr, "Address of sentinel in set_sentinels: %p\n", (void *) sentinel);	\
 		if (sentinel == NULL)	\
 			return NULL;	\
 	}						\
@@ -169,40 +169,11 @@ typedef struct rb_tree_##K##_##V {	\
 } rb_tree_##K##_##V;	\
 	\
 	\
-static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *pivot = node->rchild;	\
-	node->rchild = pivot->lchild;	\
-	/* if pivot's lchild is not a sentinel */	\
-	if (pivot->lchild->parent != tree->sentinel)	\
-		pivot->lchild->parent = node;	\
-	pivot->lchild = node;	\
-	pivot->parent = node->parent;	\
-	node->parent = pivot;	\
-	node = pivot;	\
-	if (node->lchild == tree->root)	\
-		tree->root = node;	\
-}	\
-	\
-static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	fprintf(stderr, "In rotate right\n");	\
-	node(K,V) *pivot = node->lchild;	\
-	node->lchild = pivot->rchild;	\
-	if (pivot->rchild != tree->sentinel)	\
-		pivot->rchild->parent = node;	\
-	pivot->rchild = node;	\
-	pivot->parent = node->parent;	\
-	node->parent = pivot;	\
-	node = pivot;	\
-	if (node->rchild == tree->root)	\
-		tree->root = node;	\
-}	\
-	\
 rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree) {	\
 	if (tree != NULL) {	\
 		if (tree->root != NULL)	\
 			tree->root->destroy_node(tree->root);	\
 		if (tree->sentinel != NULL)	\
-			fprintf(stderr, "Address of sentinel: %p\n", (void *) tree->sentinel);	\
 			free(tree->sentinel);	\
 		free(tree);	\
 	}	\
@@ -215,7 +186,6 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	K nkey;	\
 	int result = 0;	\
 	if (node == NULL) {	\
-		fprintf(stderr, "root node is null. Creating\n");	\
 		temp = new_node(K,V);	\
 		if (temp == NULL)	\
 			return NULL;	\
@@ -226,31 +196,25 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 		return tree->root;	\
 	}	\
 		\
-	fprintf(stderr, "Entering while loop in basic_insert\n");	\
 	while (true) {	\
 		node = temp;	\
 		nkey = node->key;	\
 		result = memcmp(&key, &nkey, sizeof(K));	\
 		if (result == 0) {	\
-			fprintf(stderr, "Found key match, rewriting value\n");	\
 			node->value = value;	\
 			return node;	\
 		}	\
 		else if (result < 0) {	\
-			fprintf(stderr, "Moving to left child.\n");	\
 			temp = node->lchild;	\
 		}	\
 		else {	\
-			fprintf(stderr, "Moving to right child.\n");	\
 			temp = node->rchild;	\
 			\
 		}	\
 		if (temp == tree->sentinel) {	\
-			fprintf(stderr, "Found sentinel\n");	\
 			break;	\
 		}	\
 	}	\
-	fprintf(stderr, "Exited while loop\n");	\
 	temp = new_node(K,V);	\
 		\
 	if (temp == NULL)	\
@@ -258,12 +222,9 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	temp->set_sentinels(temp, tree->sentinel);	\
 	temp->key = key;	\
 	temp->value = value;	\
-	fprintf(stderr, "Address of temp %p\n", (void *) temp);	\
+	temp->color = RED;	\
 	temp->parent = node;	\
-	fprintf(stderr, "Address of temp's parent %p\n", (void *) node);	\
-	fprintf(stderr, "Address of node: %p\n", (void *) node);	\
 	(result > 0) ? (node->rchild = temp) : (node->lchild = temp);	\
-	fprintf(stderr, "Address of node's child: %p\n", (void *) ((result > 0) ? node->rchild : node->lchild));	\
 	return temp;	\
 }	\
 	\
@@ -290,38 +251,78 @@ static inline color_t uncle_color(node(K,V) *node) {	\
 	return (u->color == RED) ? RED : BLACK;	\
 }	\
 static inline void recolor_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *p = parent(node);	\
-	node(K,V) *u = uncle(node);	\
-	node(K,V) *g = grandparent(node);	\
+	node(K,V) *temp = node;	\
+	node(K,V) *p = parent(temp);	\
+	node(K,V) *u = uncle(temp);	\
+	node(K,V) *g = grandparent(temp);	\
 	p->color = BLACK;	\
 	u->color = BLACK;	\
 	g->color = RED;	\
 }	\
 	\
+static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	node(K,V) *pivot = temp->rchild;	\
+	node(K,V) *p = parent(temp);	\
+	temp->rchild = pivot->lchild;	\
+	/* if pivot's lchild is not a sentinel */	\
+	if (pivot->lchild != tree->sentinel)	\
+		pivot->lchild->parent = temp;	\
+	pivot->lchild = temp;	\
+	pivot->parent = temp->parent;	\
+	/* Check case where node is root */	\
+	if (p != NULL) {	\
+		p->lchild = pivot;	\
+	}	\
+	temp->parent = pivot;	\
+	temp = pivot;	\
+	if (temp->lchild == tree->root) {	\
+		tree->root = temp;	\
+		temp->color = BLACK;	\
+	}	\
+}	\
+	\
+static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	node(K,V) *p = parent(temp);	\
+	node(K,V) *pivot = temp->lchild;	\
+	temp->lchild = pivot->rchild;	\
+	if (pivot->rchild != tree->sentinel)	\
+		pivot->rchild->parent = temp;	\
+	pivot->rchild = temp;	\
+	pivot->parent = temp->parent;	\
+	/* Check case where node is root */	\
+	if (p != NULL) {	\
+		p->rchild = pivot;	\
+	}	\
+	temp->parent = pivot;	\
+	temp = pivot;	\
+	if (temp->rchild == tree->root)	\
+		tree->root = temp;	\
+}	\
+	\
 static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *root = node;	\
-	node(K,V) *p = parent(root);	\
-	node(K,V) *g = grandparent(root);	\
-	fprintf(stderr, "Address of node: %p\n", (void *) node);	\
-	fprintf(stderr, "Address of parent: %p\n", (void *) parent);	\
-	fprintf(stderr, "Address of grandparent: %p\n", (void *) grandparent);	\
-	if (root == p->rchild && p == g->lchild) {	\
+	node(K,V) *temp = node;	\
+	node(K,V) *p = parent(temp);	\
+	node(K,V) *g = grandparent(temp);	\
+	if (temp == p->rchild && p == g->lchild) {	\
 		fprintf(stderr, "Performing left rotate.\n");	\
 		rotate_left_##K##_##V(tree, p);	\
-		root = root->lchild;	\
+		temp = temp->lchild;	\
 	}	\
-	else if (root == p->lchild && p == g->rchild) {	\
+	else if (temp == p->lchild && p == g->rchild) {	\
 		fprintf(stderr, "Performing right rotate.\n");	\
 		rotate_right_##K##_##V(tree, p);	\
-		root = root->rchild;	\
+		temp = temp->rchild;	\
 	}	\
-		\
-	if (root == p->lchild) {	\
-		fprintf(stderr, "Root is p's left child. Performing right rotate\n");	\
+	p = parent(temp);	\
+	g = grandparent(temp);	\
+	if (temp == p->lchild) {	\
+		fprintf(stderr, "node is p's left child. Performing right rotate\n");	\
 		rotate_right_##K##_##V(tree, g);	\
 	}	\
 	else {	\
-		fprintf(stderr, "Root is p's right child. Performing left rotate\n");	\
+		fprintf(stderr, "node is p's right child. Performing left rotate\n");	\
 		rotate_left_##K##_##V(tree, g);	\
 	}	\
 	p->color = BLACK;	\
@@ -343,11 +344,11 @@ static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	
 		}	\
 		else if (uncle(temp) != NULL && uncle_color(temp) == RED) {	\
 			fprintf(stderr, "Uncle is not null and uncle's color is red. recolor and re-enter\n");	\
-			temp = grandparent(temp);	\
 			recolor_##K##_##V(temp);	\
+			temp = grandparent(temp);	\
 		}	\
 		else if (uncle(temp) != NULL && uncle_color(temp) == BLACK) {	\
-			fprintf(stderr, "Uncle is not null and uncle's color is red. rotate\n");	\
+			fprintf(stderr, "Uncle is not null and uncle's color is black. rotate\n");	\
 			rotate_##K##_##V(tree, temp);	\
 			return;	\
 		}	\
@@ -356,10 +357,13 @@ static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	
 	\
 rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	node(K,V) *temp = basic_insert_##K##_##V(tree, key, value);	\
-	fprintf(stderr, "Address of node being returned %p\n", (void *) temp);	\
+	fprintf(stderr, "Color of newly created node: ");	\
+	PRINT_COLOR(temp); printf("\n");	\
 	if (temp == NULL)	\
 		return basic_insert_failed;	\
 	repair_tree_##K##_##V(tree, temp);	\
+	fprintf(stderr, "Color of newly created node after repair: ");	\
+	PRINT_COLOR(temp); printf("\n"); 	\
 	return 0;	\
 }	\
 	\
@@ -369,6 +373,7 @@ void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
 		return;	\
 	inorder_traverse_##K##_##V(tree, node->lchild);	\
 	printf("Key: %d, Value: %c\n", node->key, node->value);	\
+	printf("Color: "); PRINT_COLOR(node); printf("\n");	\
 	inorder_traverse_##K##_##V(tree, node->rchild);	\
 }	\
 	\

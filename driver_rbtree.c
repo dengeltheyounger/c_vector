@@ -1,9 +1,15 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include "red_black_tree.h"
 
 define_rbtree(int, char)
 
+#define get_key()	({ int x = rand() % 100; x; })
+#define get_value()	({ int x = (rand() % 10) + 48; x; })
+
 int main() {
+	srand(time(NULL));
 	rbtree_code result = 0;
 	node(int, char) *node = NULL;
 	
@@ -36,37 +42,18 @@ int main() {
 	
 	printf("new_rbtree function testing successful\n");
 	
-	printf("Testing insert function\n");
+	printf("Testing insert function using random key value pairs\n");
 	
-	printf("First insert...\n");
-		
-	result = tree->insert(tree, 21,'a');
-	
-	if (result == new_node_failed) {
-		fprintf(stderr, "New node failed!\n");
-		return 1;
-	}
-	
-	printf("Second insert...\n");
-	
-	result = tree->insert(tree, 24, 'b');
-
-	if (result == new_node_failed) {
-		fprintf(stderr, "New node failed!\n");
-	}
-
-	printf("Testing third insert for rebalancing\n");
-
-	result = tree->insert(tree, 23, 'c');
-	
-	if (result == new_node_failed) {
-		fprintf(stderr, "new node failed!\n");
-		return 1;
+	for (int i = 0; i < 10; ++i) {
+		printf("Insertion %d\n", i);
+		tree->insert(tree, get_key(), get_value());
 	}
 	
 	printf("Insert function testing successful\n");
 	
 	tree->inorder_traverse(tree, tree->root);
+	
+	printf("Value of root node: %d\n", tree->root->key);
 	
 	printf("Testing destroy_tree function\n");
 	
