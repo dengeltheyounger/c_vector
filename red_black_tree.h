@@ -5,9 +5,30 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
+// This is used for memcmp
+#include <endian.h>
+#include <stdint.h>
 
-#define PRINT_COLOR(NODE)	printf("%s", NODE->color == RED ? "RED" : "BLACK")
+#define PRINT_COLOR(NODE)	fprintf(stderr, "%s", NODE->color == RED ? "RED" : "BLACK")
 
+/* I noticed that the red and black tree wasn't sorting properly when I
+ * tested with large integers. I also noticed that the memcmp was giving
+ * strange results as well. I think the issue is that endianness is messing
+ * with the results of memcmp.
+ * I'd like to compare arbitrary keys without needing to resort to 
+ * memcmp, but I don't know of any better way to compare the byte value of
+ * keys. Plus, memcmp is pretty darn fast
+ */ 
+
+static uint32_t endiantest = 0xdeadbeef;
+typedef enum endianness { LITTLE, BIG } endianness;
+#define ENDIANNESS	({ endianness e = 0;	\
+						if (* (const char *) &endiantest == 0xef)	\
+							e = LITTLE;	\
+						else if (* (const char *) &endiantest == 0xde)	\
+							e = BIG;	\
+						e;	\
+					})
 
 typedef struct error_info {
 	char *functname;
@@ -180,11 +201,23 @@ rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree) {	\
 	return NULL;	\
 }	\
 	\
+static inline bool to_little_endian_##K##_##V(const char *k, const char *nkey, char *kb, char *nkb)	{	\
+	if (ENDIANNESS == LITTLE)	\
+		return true;	\
+	 else if (ENDIANNESS == BIG) {	\
+		for (size_t i = 0, j = sizeof(K) -1; i < sizeof(K); ++i, --j) {	\
+			kb[i] = k[j];	\
+			nkb[i] = nkey[j];	\
+		}	\
+	}	\
+	return false;	\
+}	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	node(K,V) *node = tree->root;	\
 	node(K,V) *temp = tree->root;	\
 	K nkey;	\
 	int result = 0;	\
+	bool end = false;	\
 	if (node == NULL) {	\
 		temp = new_node(K,V);	\
 		if (temp == NULL)	\
@@ -196,10 +229,18 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 		return tree->root;	\
 	}	\
 		\
+	char *kbuff = (char *) malloc(sizeof(char));	\
+	char *nkbuff = (char *) malloc(sizeof(char));	\
 	while (true) {	\
 		node = temp;	\
 		nkey = node->key;	\
-		result = memcmp(&key, &nkey, sizeof(K));	\
+		end = to_little_endian_##K##_##V((char *) &key, (char *) &nkey, kbuff, nkbuff);	\
+		if (!end) {	\
+			result = memcmp(&kbuff, &nkbuff, sizeof(K));	\
+		} else {	\
+			result = memcmp(&key, &value, sizeof(K));	\
+		}	\
+		fprintf(stdout, "Result of memcmp for %d, %d: %d\n", key, nkey, result);	\
 		if (result == 0) {	\
 			node->value = value;	\
 			return node;	\
@@ -215,6 +256,8 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 			break;	\
 		}	\
 	}	\
+	free(kbuff);	\
+	free(nkbuff);	\
 	temp = new_node(K,V);	\
 		\
 	if (temp == NULL)	\
@@ -264,21 +307,20 @@ static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	
 	node(K,V) *temp = node;	\
 	node(K,V) *pivot = temp->rchild;	\
 	node(K,V) *p = parent(temp);	\
+	pivot->parent = p;	\
 	temp->rchild = pivot->lchild;	\
-	/* if pivot's lchild is not a sentinel */	\
-	if (pivot->lchild != tree->sentinel)	\
-		pivot->lchild->parent = temp;	\
 	pivot->lchild = temp;	\
-	pivot->parent = temp->parent;	\
-	/* Check case where node is root */	\
-	if (p != NULL) {	\
-		p->lchild = pivot;	\
+	/* Check if temp's rchild is a sentinel */	\
+	if (temp->rchild != tree->sentinel) {	\
+		temp->rchild->parent = temp;	\
 	}	\
 	temp->parent = pivot;	\
-	temp = pivot;	\
-	if (temp->lchild == tree->root) {	\
-		tree->root = temp;	\
-		temp->color = BLACK;	\
+	if (p != NULL) {	\
+		(p->rchild == temp) ? (p->rchild = pivot) : (p->lchild = pivot);	\
+	}	\
+	/* Check case where node is root */	\
+	if (tree->root == temp) {	\
+		tree->root = pivot;	\
 	}	\
 }	\
 	\
@@ -286,19 +328,21 @@ static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {
 	node(K,V) *temp = node;	\
 	node(K,V) *p = parent(temp);	\
 	node(K,V) *pivot = temp->lchild;	\
+	pivot->parent = p;	\
 	temp->lchild = pivot->rchild;	\
-	if (pivot->rchild != tree->sentinel)	\
-		pivot->rchild->parent = temp;	\
 	pivot->rchild = temp;	\
-	pivot->parent = temp->parent;	\
-	/* Check case where node is root */	\
-	if (p != NULL) {	\
-		p->rchild = pivot;	\
+	/* check if temp's lchild is a sentinel */	\
+	if (temp->lchild != tree->sentinel) {	\
+		temp->lchild->parent = temp;	\
 	}	\
 	temp->parent = pivot;	\
-	temp = pivot;	\
-	if (temp->rchild == tree->root)	\
-		tree->root = temp;	\
+	/* check case where node is root */	\
+	if (p != NULL) {	\
+		(p->rchild == temp) ? (p->rchild = pivot) : (p->lchild = pivot);	\
+	}	\
+	if (tree->root == temp) {	\
+		tree->root = pivot;	\
+	}	\
 }	\
 	\
 static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
@@ -325,8 +369,8 @@ static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 		fprintf(stderr, "node is p's right child. Performing left rotate\n");	\
 		rotate_left_##K##_##V(tree, g);	\
 	}	\
-	p->color = BLACK;	\
-	g->color = RED;	\
+	p->color = BLACK; 	\
+	g->color = RED; 	\
 }	\
 	\
 static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
@@ -334,7 +378,7 @@ static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	
 	fprintf(stderr, "Entering repair tree\n");	\
 	while (true) {	\
 		if (temp->parent == NULL) {	\
-			fprintf(stderr, "temp's parent was null. Therefore, root\n");	\
+			fprintf(stderr, "temp's parent was null. Therefore, root node was returned.\n");	\
 			temp->color = BLACK;	\
 			return;	\
 		}	\
@@ -358,12 +402,12 @@ static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	
 rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	node(K,V) *temp = basic_insert_##K##_##V(tree, key, value);	\
 	fprintf(stderr, "Color of newly created node: ");	\
-	PRINT_COLOR(temp); printf("\n");	\
+	PRINT_COLOR(temp); fprintf(stderr, "\n");	\
 	if (temp == NULL)	\
 		return basic_insert_failed;	\
 	repair_tree_##K##_##V(tree, temp);	\
 	fprintf(stderr, "Color of newly created node after repair: ");	\
-	PRINT_COLOR(temp); printf("\n"); 	\
+	PRINT_COLOR(temp); fprintf(stderr, "\n"); 	\
 	return 0;	\
 }	\
 	\
@@ -372,8 +416,8 @@ void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
 	if (node->set_sentinels == NULL && node->destroy_node == NULL)	\
 		return;	\
 	inorder_traverse_##K##_##V(tree, node->lchild);	\
-	printf("Key: %d, Value: %c\n", node->key, node->value);	\
-	printf("Color: "); PRINT_COLOR(node); printf("\n");	\
+	fprintf(stderr, "Key: %d, Value: %c\n", node->key, node->value);	\
+	fprintf(stderr, "Color: "); PRINT_COLOR(node); fprintf(stderr, "\n");	\
 	inorder_traverse_##K##_##V(tree, node->rchild);	\
 }	\
 	\
