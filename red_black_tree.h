@@ -86,13 +86,21 @@ typedef struct node_##K##_##V {	\
 	struct node_##K##_##V *lchild;	\
 	struct node_##K##_##V *(*destroy_node)(struct node_##K##_##V*);	\
 	struct node_##K##_##V *(*set_sentinels)(struct node_##K##_##V*, struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*is_sentinel)(struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*minimum)(struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*maximum)(struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*successor)(struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*predecessor)(struct node_##K##_##V*);	\
 } node_##K##_##V;	\
 	\
+static inline bool *is_sentinel_##K##_##V(node(K,V) *node) {	\
+	return (node->lchild == NULL || node->rchild == NULL);	\
+}	\
 node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
 	if (node == NULL) \
 		return NULL;	\
-	/* only a sentinel will have null function pointers. the tree will take care of this */ \
-	else if (node->set_sentinels == NULL && node->destroy_node == NULL)	\
+	/* only a sentinel will have null children. the tree will take care of this */ \
+	else if (node->is_sentinel(node))	\
 		return NULL;	\
 						\
 	if (node->rchild != NULL) {	\
@@ -125,6 +133,68 @@ node(K,V) *set_sentinels_##K##_##V(node(K,V) *node, node(K,V) *sentinel) {	\
 	return sentinel;	\
 }	\
 	\
+node(K,V) *minimum_##K##_##V(node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	node(K,V) *prev = node;	\
+	while (!node->is_sentinel(temp)) {	\
+		prev = temp;	\
+		temp = temp->lchild;	\
+	}	\
+	return temp;	\
+}	\
+node(K,V) *maximum_##K##_##V(node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	node(K,V) *prev = node;	\
+	while (!node->is_sentinel(temp)) {	\
+		prev = temp;	\
+		temp = temp->rchild;	\
+	}	\
+	return temp;	\
+}	\
+node(K,V) *successor_##K##_##V(node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	node(K,V) *p = node->parent;	\
+	if (node->is_sentinel(temp))	\
+		return NULL;	\
+	else if (node->is_sentinel(temp->rchild)) {	\
+		while (p != NULL && temp != p->lchild) {	\
+			temp = p;	\
+			p = p->parent;	\
+		}	\
+		return p;	\
+	}	\
+	else {	\
+		return minimum_##K##_##V(temp->rchild);	\
+	}	\
+	return NULL;	\
+}	\
+	\
+node(K,V) *predecessor_##K##_##V(node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	node(K,V) *parent = node->parent;	\
+	if (node->is_sentinel(temp))	\
+		return NULL;	\
+	else if (node->is_sentinel(temp->lchild)) {	\
+		while (p != NULL && temp != p->rchild) {	\
+			temp = p;	\
+			p = p->parent;	\
+		}	\
+		return p;	\
+	}	\
+	else {	\
+		return maximum(temp->lchild);	\
+	}	\
+	return NULL;	\
+}	\
+static inline void set_node_ptr_##K#_##V(node(K,V) *node) {	\
+	node->destroy_node = &destroy_node_##K##_##V;	\
+	node->set_sentinels = &set_sentinels_##K#_##V;	\
+	node->is_sentinel = &is_sentinel_##K##_##V;	\
+	node->minimum = &minimum_##K##_##V;	\
+	node->maximum = &maximum_##K##_##V;	\
+	node->successor = &successor_##K##_##V;	\
+	node->predecessor = &predecessor_##K##_##V;	\
+}	\
 node(K,V) *new_node_##K##_##V() {	\
 	node(K,V) *node = NULL;	\
 	\
@@ -134,8 +204,7 @@ node(K,V) *new_node_##K##_##V() {	\
 	}	\
 		\
 	node->color = RED;	\
-	node->destroy_node = &destroy_node_##K##_##V;	\
-	node->set_sentinels = &set_sentinels_##K##_##V;	\
+	set_node_ptr_##K##_##V(node);	\
 	return node;	\
 }	\
 
