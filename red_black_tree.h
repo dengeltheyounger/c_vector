@@ -46,7 +46,8 @@ typedef enum rbtree_code {
 	make_sentinels_failed,
 	new_node_failed,
 	basic_insert_failed,
-	memcpy_failed
+	memcpy_failed,
+	key_not_found
 } rbtree_code;
 
 /* define_node(K,V)
@@ -187,6 +188,7 @@ typedef struct rb_tree_##K##_##V {	\
 	struct rb_tree_##K##_##V *(*destroy_rbtree)(struct rb_tree_##K##_##V*);	\
 	rbtree_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
 	void (*inorder_traverse)(struct rb_tree_##K##_##V *, node(K,V) *);	\
+	V get_value(struct rb_tree_##K##_##V *, K);	\
 } rb_tree_##K##_##V;	\
 	\
 	\
@@ -235,6 +237,39 @@ static inline int compare_bytes(const void *key, const void *nkey, size_t bytes)
 	else	\
 		return compare_big_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);	\
 }	\
+/* This is inline because it is also used by delete */	\
+static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	node(K,V) *temp = tree->root;	\
+	int result = 0;	\
+	while (temp != tree->sentinel) {	\
+		result = compare_bytes(&key, &nkey, sizeof(K));	\
+		if (result == 0)	\
+			return temp;	\
+		else if (result < 0)	\
+			temp = temp->lchild;	\
+		else	\
+			temp = temp->rchild;	\
+	}	\
+	/* Nullity indicates that the key was not found */	\
+	return NULL;	\
+}	\
+/* 0 indicates that there weren't any errors. holder is null if no repair is needed */	\
+rbtree_code basic_delete_##K##_##V(rb_tree(K,V) *tree, K key, node(K,V) *holder) {	\
+	holder = NULL;	\
+	node(K,V) *node = basic_search_##K##_##V(tree, key);	\
+	parent(K,V) *parent = node->parent;	\
+	/* If the node has two leaves, simply delete the node */	\
+	if (node->lchild == tree->sentinel && node->rchild == tree->sentinel) {	\
+		(node == parent->lchild) ? (parent->lchild = tree->sentinel) : (parent->rchild = tree->sentinel);	\
+		delete node;	\
+		return 0;	\
+	}	\
+	return 0;	\
+}	\
+V get_value_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
+	return (temp != NULL) ? temp->value; 0;	\
+}	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	node(K,V) *node = tree->root;	\
 	node(K,V) *temp = tree->root;	\
@@ -255,12 +290,7 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	while (true) {	\
 		node = temp;	\
 		nkey = node->key;	\
-		printf("Key: ");	\
-		print_bytes(&key, sizeof(K));	\
-		printf("Nkey: ");	\
-		print_bytes(&nkey, sizeof(K));	\
 		result = compare_bytes(&key, &nkey, sizeof(K));	\
-		printf("Result of comparing %d, %d: %d\n", key, nkey, result);	\
 		if (result == 0) {	\
 			node->value = value;	\
 			return node;	\
@@ -288,7 +318,7 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	(result > 0) ? (node->rchild = temp) : (node->lchild = temp);	\
 	return temp;	\
 }	\
-	\
+	\	
 static inline node(K,V) *parent(node(K,V) *node) {	\
 	return node == NULL ? NULL : node->parent;	\
 }	\
@@ -391,7 +421,7 @@ static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	g->color = RED; 	\
 }	\
 	\
-static inline void repair_tree_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+static inline void repair_tree_insert_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
 	fprintf(stderr, "Entering repair tree\n");	\
 	while (true) {	\
@@ -423,17 +453,28 @@ rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	PRINT_COLOR(temp); fprintf(stderr, "\n");	\
 	if (temp == NULL)	\
 		return basic_insert_failed;	\
-	repair_tree_##K##_##V(tree, temp);	\
+	repair_tree_insert_##K##_##V(tree, temp);	\
 	fprintf(stderr, "Color of newly created node after repair: ");	\
 	PRINT_COLOR(temp); fprintf(stderr, "\n"); 	\
 	return 0;	\
 }	\
 	\
+rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	node(K,V) *temp = search_##K##_##V(tree, key);	\
+	if (temp == NULL)	\
+		return key_not_found;
+	repair_tree_delete_##K##_##V(tree, temp);	\
+	return 0;	\
+}	\
 void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
 	/* Only the sentinel has function pointers set to null */	\
 	if (node->set_sentinels == NULL && node->destroy_node == NULL)	\
 		return;	\
 	inorder_traverse_##K##_##V(tree, node->lchild);	\
+	if (node->parent == NULL)	\
+		fprintf(stderr, "Root node\n");	\
+	else	\
+		fprintf(stderr, "Node is the child of %d\n", node->parent->key);	\
 	fprintf(stderr, "Key: %d, Value: %c\n", node->key, node->value);	\
 	fprintf(stderr, "Color: "); PRINT_COLOR(node); fprintf(stderr, "\n");	\
 	inorder_traverse_##K##_##V(tree, node->rchild);	\
@@ -443,6 +484,7 @@ void set_rbtree_ptr_##K##_##V(rb_tree(K,V) *tree) {	\
 	tree->destroy_rbtree = &destroy_rbtree_##K##_##V;	\
 	tree->insert = &insert_##K##_##V;	\
 	tree->inorder_traverse = &inorder_traverse_##K##_##V;	\
+	tree->get_value = &get_value_##K##_##V;	\
 }	\
 	\
 rb_tree(K,V) *new_rbtree_##K##_##V() {	\
