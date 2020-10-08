@@ -257,7 +257,7 @@ typedef struct rb_tree_##K##_##V {	\
 	struct rb_tree_##K##_##V *(*destroy_rbtree)(struct rb_tree_##K##_##V*);	\
 	rbtree_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
 	void (*inorder_traverse)(struct rb_tree_##K##_##V *, node(K,V) *);	\
-	V get_value(struct rb_tree_##K##_##V *, K);	\
+	V (*get_value)(struct rb_tree_##K##_##V *, K);	\
 } rb_tree_##K##_##V;	\
 	\
 	\
@@ -280,8 +280,7 @@ static inline void print_bytes(const void *key, size_t bytes) {	\
 	printf("\n");	\
 }	\
 /* memcmp does not account for endianness. This could mess up the insert function */	\
-/* For that reason, I've written a function that will not only compare the byte values */	\
-/* of the key, but also account for endianness. */	\
+/* This comparison function accounts for endianness. */	\
 static inline int compare_little_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {	\
 	for (size_t i = bytes - 1; i >= 0; --i) {	\
 		if (key[i] > nkey[i])	\
@@ -326,13 +325,31 @@ static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 rbtree_code basic_delete_##K##_##V(rb_tree(K,V) *tree, K key, node(K,V) *holder) {	\
 	holder = NULL;	\
 	node(K,V) *node = basic_search_##K##_##V(tree, key);	\
+	if (node == NULL)	\
+		return key_not_found;	\
 	parent(K,V) *parent = node->parent;	\
-	/* If the node has two leaves, simply delete the node */	\
-	if (node->lchild == tree->sentinel && node->rchild == tree->sentinel) {	\
+	/* If the node has two leaves, then delete if red node is red. Otherwise, return node */	\
+	if (node->is_sentinel(node->lchild) && node->is_sentinel(node->rchild)) {	\
+		if (node->color == BLACK) {	\
+			holder = node;	\
+			return 0;	\
+		}	\
 		(node == parent->lchild) ? (parent->lchild = tree->sentinel) : (parent->rchild = tree->sentinel);	\
-		delete node;	\
+		free(node);	\
 		return 0;	\
 	}	\
+	/* Check case where neither children are leaves */	\
+	else if (!node->is_sentinel(node->lchild) && !node->is_sentinel(node->rchild) {	\
+		/* for now we only worry about finding successor */	\
+		node(K,V) *temp = node->successor(node);	\
+		node->key = temp->key;	\
+		node->value = temp->value;	\
+		temp->parent->rchild = tree->sentinel;	\
+		free(temp);	\
+		return 0;	\
+	}	\
+	/* The remaining case is there is one non-leaf child */	\
+	holder = node;	\
 	return 0;	\
 }	\
 V get_value_##K##_##V(rb_tree(K,V) *tree, K key) {	\
@@ -387,7 +404,7 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	(result > 0) ? (node->rchild = temp) : (node->lchild = temp);	\
 	return temp;	\
 }	\
-	\	
+	\
 static inline node(K,V) *parent(node(K,V) *node) {	\
 	return node == NULL ? NULL : node->parent;	\
 }	\
@@ -528,10 +545,90 @@ rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	return 0;	\
 }	\
 	\
+/* basic delete only handles cases where there is no need for tree repair */	\
+/* repair tree delete handles cases where deletion and repair is needed */	\
+/* This helps simplify the code */	\
+rbtree_code repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	/* child is whichever node is non sentinel */	\
+	node(K,V) *child = (temp->is_sentinel(temp->rchild)) ? lchild : rchild;	\
+	node(K,V) *p = temp->parent;	\
+	node(K,V) *s = NULL;	\
+	child->parent = p;	\
+	/* Replace temp and child. This is done regardless of whether or not child is red */	\
+	(temp == p->lchild) ? (p->lchild = child) : (p->rchild = rchild);	\
+	temp = child; child = NULL;	\
+	/* This follows the case where node is black and child is red. */	\
+	/* All that is needed in this case is to recolor child to black. */	\
+	/* No other repair is needed */	\
+	if (child->color == RED) {	\
+		child->color = BLACK;	\
+		free(node); node = NULL;	\
+		return 0;	\
+	}	\
+	temp = child;	\
+	/* This covers the case where the node is and non leaf child are both black */	\
+	while (true) {	\
+		/* if parent is null, then temp is root, in which case it is the right color */	\
+		if (temp->parent == NULL)	\
+			break;	\
+		s = sibling(temp);	\
+		if (s->color == RED) {	\
+			/* If the sibling is red, then recolor and rotate parent. Sibling is now at root of subtree */	\
+			p->color = RED;	\
+			s->color = BLACK;	\
+			(temp == p->left) ? rotate_left_##K##_##V(p) : rotate_right_##K##_##V(p);	\
+		}	\
+		s = sibling(temp);	\
+		p = parent(temp);	\
+		/* If parent, sibling, and nephews are all black, then color red and go back to beginning of loop */	\
+		if (p->color == BLACK && s->color == BLACK && s->lchild->color == BLACK && s->rchild->color == BLACK) {	\
+			s->color = RED;	\
+			continue;	\
+		}	\
+		/* If only the parent is red, then recolor p, s and then break */	\
+		else if (p->color == RED && s->color == BLACK && s->lchild->color == BLACK && s->rchild->color == BLACK) {	\
+			s->color = RED;	\
+			p->color = BLACK;	\
+			break;	\
+		}	\
+		if (temp == p->lchild && s->rchild->color == BLACK && s->lchild->color == RED) {	\
+			s->color = RED;	\
+			s->lchild->color = BLACK;	\
+			rotate_right_##K##_##V(s);	\
+		}	\
+		else if (n == p->rchild && s->lchild->color == BLACK && s->rchild->color == RED) {	\
+			s->color = RED;	\
+			s->rchild->color = BLACK;	\
+			rotate_left_##K##_##V(s);	\
+		}	\
+		s = sibling(temp);	\
+		p = parent(temp);	\
+		s->color = p->color;	\
+		p->color = BLACK;	\
+		if (temp == p->lchild) {	\
+			s->rchild->color = BLACK;	\
+			rotate_left_##K##_##V(p);	\
+			break;	\
+		}	\
+		else {	\
+			s->lchild->color = BLACK;	\
+			rotate_right_##K##_##V(p);	\
+			break;	\
+		}	\
+	}	\
+	free(node); node = NULL;	\
+	return 0;	\
+}	\
 rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
-	node(K,V) *temp = search_##K##_##V(tree, key);	\
-	if (temp == NULL)	\
-		return key_not_found;
+	node(K,V) *temp = NULL;	\
+	rbtree_code result = 0;	\
+	result = basic_delete_##K##_##V(tree, key, temp);	\
+	/* if temp is null there is either an error or no repair is necessary */	\
+	if (temp == NULL && key == 0)	\
+		return 0;	\
+	else if (temp == NULL && key != 0)	\
+		return result;	\
 	repair_tree_delete_##K##_##V(tree, temp);	\
 	return 0;	\
 }	\
