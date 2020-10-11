@@ -402,33 +402,15 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	return temp;	\
 }	\
 	\
-static inline node(K,V) *parent(node(K,V) *node) {	\
-	return node == NULL ? NULL : node->parent;	\
-}	\
-static inline node(K,V) *grandparent(node(K,V) *node) {	\
-	node(K,V) *p = parent(node);	\
-	return parent(p);	\
-}	\
-static inline node(K,V) *sibling(node(K,V) *node) {	\
-	node(K,V) *p = parent(node);	\
-	if (p == NULL)	\
-		return NULL;	\
-	return node == p->lchild ? p->rchild : p->lchild;	\
-}	\
-static inline node(K,V) *uncle(node(K,V) *node) {	\
-	node(K,V) *p = parent(node);	\
-	node(K,V) *s = sibling(p);	\
-	return s;	\
-}	\
-static inline color_t uncle_color(node(K,V) *node) {	\
-	node(K,V) *u = uncle(node);	\
+static inline color_t uncle_color_##K##_##V(node(K,V) *node) {	\
+	node(K,V) *u = node->uncle(node);	\
 	return (u->color == RED) ? RED : BLACK;	\
 }	\
 static inline void recolor_##K##_##V(node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
-	node(K,V) *p = parent(temp);	\
-	node(K,V) *u = uncle(temp);	\
-	node(K,V) *g = grandparent(temp);	\
+	node(K,V) *p = temp->parent;	\
+	node(K,V) *u = node->uncle(node);	\
+	node(K,V) *g = node->grandparent(node);	\
 	p->color = BLACK;	\
 	u->color = BLACK;	\
 	g->color = RED;	\
@@ -437,7 +419,7 @@ static inline void recolor_##K##_##V(node(K,V) *node) {	\
 static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
 	node(K,V) *pivot = temp->rchild;	\
-	node(K,V) *p = parent(temp);	\
+	node(K,V) *p = temp->parent;	\
 	pivot->parent = p;	\
 	temp->rchild = pivot->lchild;	\
 	pivot->lchild = temp;	\
@@ -457,7 +439,7 @@ static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	
 	\
 static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
-	node(K,V) *p = parent(temp);	\
+	node(K,V) *p = temp->parent;	\
 	node(K,V) *pivot = temp->lchild;	\
 	pivot->parent = p;	\
 	temp->lchild = pivot->rchild;	\
@@ -478,26 +460,22 @@ static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {
 	\
 static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
-	node(K,V) *p = parent(temp);	\
-	node(K,V) *g = grandparent(temp);	\
+	node(K,V) *p = temp->parent;	\
+	node(K,V) *g = temp->grandparent(temp);	\
 	if (temp == p->rchild && p == g->lchild) {	\
-		fprintf(stderr, "Performing left rotate.\n");	\
 		rotate_left_##K##_##V(tree, p);	\
 		temp = temp->lchild;	\
 	}	\
 	else if (temp == p->lchild && p == g->rchild) {	\
-		fprintf(stderr, "Performing right rotate.\n");	\
 		rotate_right_##K##_##V(tree, p);	\
 		temp = temp->rchild;	\
 	}	\
-	p = parent(temp);	\
-	g = grandparent(temp);	\
+	p = temp->parent;	\
+	g = temp->grandparent(temp);	\
 	if (temp == p->lchild) {	\
-		fprintf(stderr, "node is p's left child. Performing right rotate\n");	\
 		rotate_right_##K##_##V(tree, g);	\
 	}	\
 	else {	\
-		fprintf(stderr, "node is p's right child. Performing left rotate\n");	\
 		rotate_left_##K##_##V(tree, g);	\
 	}	\
 	p->color = BLACK; 	\
@@ -506,24 +484,23 @@ static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	\
 static inline void repair_tree_insert_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
-	fprintf(stderr, "Entering repair tree\n");	\
 	while (true) {	\
+		/* The only case that doesn't immediately exit is case 3. */	\
+		/* In this case, temp is root */	\
 		if (temp->parent == NULL) {	\
-			fprintf(stderr, "temp's parent was null. Therefore, root node was returned.\n");	\
 			temp->color = BLACK;	\
 			return;	\
 		}	\
+		/* In this case, temp is red and parent is black. No need to modify */	\
 		else if (temp->parent->color == BLACK) {	\
-			fprintf(stderr, "Temp's parent already black. Exiting\n");	\
 			return;	\
 		}	\
-		else if (uncle(temp) != NULL && uncle_color(temp) == RED) {	\
-			fprintf(stderr, "Uncle is not null and uncle's color is red. recolor and re-enter\n");	\
+		/* Recolor and then work up the tree doing modifications as necessary */	\
+		else if (temp->uncle(temp) != NULL && uncle_color_##K##_##V(temp) == RED) {	\
 			recolor_##K##_##V(temp);	\
-			temp = grandparent(temp);	\
+			temp = temp->grandparent(temp);	\
 		}	\
-		else if (uncle(temp) != NULL && uncle_color(temp) == BLACK) {	\
-			fprintf(stderr, "Uncle is not null and uncle's color is black. rotate\n");	\
+		else if (temp->uncle(temp) != NULL && uncle_color_##K##_##V(temp) == BLACK) {	\
 			rotate_##K##_##V(tree, temp);	\
 			return;	\
 		}	\
@@ -531,14 +508,11 @@ static inline void repair_tree_insert_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 }	\
 	\
 rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
+	/* Insert and then perform tree repairs */	\
 	node(K,V) *temp = basic_insert_##K##_##V(tree, key, value);	\
-	fprintf(stderr, "Color of newly created node: ");	\
-	PRINT_COLOR(temp); fprintf(stderr, "\n");	\
 	if (temp == NULL)	\
 		return basic_insert_failed;	\
 	repair_tree_insert_##K##_##V(tree, temp);	\
-	fprintf(stderr, "Color of newly created node after repair: ");	\
-	PRINT_COLOR(temp); fprintf(stderr, "\n"); 	\
 	return 0;	\
 }	\
 	\
@@ -560,12 +534,12 @@ static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 		caseone = false;	\
 		if (temp == temp->parent->lchild) {	\
 			/* It is implicit that the sibling is the right child of parent */	\
-			sibling = temp->parent->rchild;	\
+			sibling = temp->sibling(temp);	\
 			if (sibling->color == RED) {	\
 				sibling->color = BLACK;	\
 				parent->color = RED;	\
 				rotate_left_##K##_##V(tree, temp->parent);	\
-				sibling = temp->parent->rchild;	\
+				sibling = temp->sibling(temp);	\
 				caseone = true;	\
 			}	\
 			/* case two terminates if it was entered through case one */	\
@@ -579,7 +553,7 @@ static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 				sibling->lchild->color = BLACK;	\
 				sibling->color = RED;	\
 				rotate_right_##K##_##V(tree, sibling);	\
-				sibling = temp->parent->rchild;	\
+				sibling = temp->sibling(temp);	\
 			}	\
 			/* This is set as a separate if statement because case 3 will lead into */	\
 			/* case 4 and case 1 can lead into cases 2,3,4 */	\
@@ -594,12 +568,12 @@ static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 		}	\
 		/* This is literally the exact same except left and right are switche */	\
 		else {	\
-			sibling = temp->parent->lchild;	\
+			sibling = temp->sibling(temp);	\
 			if (sibling->color == RED) {	\
 				sibling->color = BLACK;	\
 				temp->parent->color = RED;	\
 				rotate_right_##K##_##V(tree, temp->parent);	\
-				sibling = temp->parent->lchild;	\
+				sibling = temp->sibling(temp);	\
 				caseone = true;	\
 			}	\
 			if (sibling->rchild->color == BLACK && sibling->lchild->color == BLACK) {	\
@@ -612,7 +586,7 @@ static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 				sibling->rchild->color = BLACK;	\
 				sibling->color = RED;	\
 				rotate_left_##K##_##V(tree, sibling);	\
-				sibling = temp->parent->lchild;	\
+				sibling = temp->sibling(temp);	\
 			}	\
 			if (sibling->lchild->color == RED) {	\
 				sibling->color = temp->parent->color;	\
@@ -670,17 +644,16 @@ rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	/* One or more violations have been introduced if mover was originally black */	\
 	if (ocolor == BLACK) {	\
 		repair_tree_delete_##K##_##V(tree, rmover);	\
-		/* Sentinels should not have parents, so once we're done, have the parents point to null */	\
-		if (rmover->is_sentinel(rmover))	\
-			rmover->parent = NULL;	\
 	}	\
+	/* At the end, set the sentinel's parent back to NULL in case its parent was set */	\
+	tree->sentinel->parent = NULL;	\
 	/* delete node at the end */	\
 	free(node);	\
 }	\
 	\
 void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
-	/* Only the sentinel has function pointers set to null */	\
-	if (node->set_sentinels == NULL && node->destroy_node == NULL)	\
+	/* No need to print sentinel */	\
+	if (node->is_sentinel(node))	\
 		return;	\
 	inorder_traverse_##K##_##V(tree, node->lchild);	\
 	if (node->parent == NULL)	\
