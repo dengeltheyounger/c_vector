@@ -5,20 +5,15 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-// This is used for memcmp
 #include <endian.h>
 #include <stdint.h>
 
 #define PRINT_COLOR(NODE)	fprintf(stderr, "%s", NODE->color == RED ? "RED" : "BLACK")
 
-/* I noticed that the red and black tree wasn't sorting properly when I
- * tested with large integers. I also noticed that the memcmp was giving
- * strange results as well. I think the issue is that endianness is messing
- * with the results of memcmp.
- * I'd like to compare arbitrary keys without needing to resort to 
- * memcmp, but I don't know of any better way to compare the byte value of
- * keys. Plus, memcmp is pretty darn fast
- */ 
+/* rb_tree compares the byte value of keys. This means that the endianness
+ * of the machine matters. For that reason, a custom memcmp type function
+ * is used that accounts for endianness
+ */
 
 static uint32_t endiantest = 0xdeadbeef;
 typedef enum endianness { LITTLE, BIG } endianness;
@@ -76,6 +71,12 @@ typedef enum rbtree_code {
  * NOTES: This will create and initialize two sentinal children
  */
 
+/* Eventually, node will be designed so that node_##K##_##V will have a
+ * pointer to a generic node. The generic node will have the pointers to
+ * parent, rchild, lchild. In addition, sibling through predecessor will
+ * also belong to generic node. The key value pair and color will then be
+ * part of node_##K##_##V
+ */
 #define define_node(K,V)	\
 typedef struct node_##K##_##V {	\
 	color_t color;	\
@@ -86,15 +87,21 @@ typedef struct node_##K##_##V {	\
 	struct node_##K##_##V *lchild;	\
 	struct node_##K##_##V *(*destroy_node)(struct node_##K##_##V*);	\
 	struct node_##K##_##V *(*set_sentinels)(struct node_##K##_##V*, struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*is_sentinel)(struct node_##K##_##V*);	\
+	bool (*is_sentinel)(struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*sibling)(struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*uncle)(struct node_##K##_##V*);	\
+	struct node_##K##_##V *(*grandparent)(struct node_##K##_##V*);	\
 	struct node_##K##_##V *(*minimum)(struct node_##K##_##V*);	\
 	struct node_##K##_##V *(*maximum)(struct node_##K##_##V*);	\
 	struct node_##K##_##V *(*successor)(struct node_##K##_##V*);	\
 	struct node_##K##_##V *(*predecessor)(struct node_##K##_##V*);	\
 } node_##K##_##V;	\
 	\
-static inline bool *is_sentinel_##K##_##V(node(K,V) *node) {	\
-	return (node->lchild == NULL || node->rchild == NULL);	\
+static inline bool is_sentinel_##K##_##V(node(K,V) *node) {	\
+	bool result = true;	\
+	if (node->lchild != NULL && node->rchild != NULL)	\
+		result = false;	\
+	return result;	\
 }	\
 node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
 	if (node == NULL) \
@@ -123,7 +130,6 @@ static inline node(K,V) *make_sentinel_##K##_##V() {	\
 	\
 node(K,V) *set_sentinels_##K##_##V(node(K,V) *node, node(K,V) *sentinel) {	\
 	if (sentinel == NULL) {	\
-		fprintf(stderr, "sentinel is null, creating a new one\n");	\
 		sentinel = make_sentinel_##K##_##V(sentinel);	\
 		if (sentinel == NULL)	\
 			return NULL;	\
@@ -133,20 +139,36 @@ node(K,V) *set_sentinels_##K##_##V(node(K,V) *node, node(K,V) *sentinel) {	\
 	return sentinel;	\
 }	\
 	\
+node(K,V) *sibling_##K##_##V(node(K,V) *node) {	\
+	if (node == NULL)	\
+		return NULL;	\
+	node(K,V) *p = node->parent;	\
+	if (p == NULL)	\
+		return NULL;	\
+	return (node == p->lchild) ? p->rchild : p->lchild;	\
+}	\
+node(K,V) *uncle_##K##_##V(node(K,V) *node) {	\
+	node(K,V) *p = node->parent;	\
+	return p->sibling(p);	\
+}	\
+node(K,V) *grandparent_##K##_##V(node(K,V) *node) {	\
+	node(K,V) *p = node->parent;	\
+	return (p == NULL) ? NULL : p->parent;	\
+}	\
 node(K,V) *minimum_##K##_##V(node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
-	node(K,V) *prev = node;	\
-	while (!node->is_sentinel(temp)) {	\
-		prev = temp;	\
+	while (!temp->is_sentinel(temp)) {	\
+		if (temp->is_sentinel(temp->lchild))	\
+			break;	\
 		temp = temp->lchild;	\
 	}	\
 	return temp;	\
 }	\
 node(K,V) *maximum_##K##_##V(node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
-	node(K,V) *prev = node;	\
 	while (!node->is_sentinel(temp)) {	\
-		prev = temp;	\
+		if (temp->is_sentinel(temp->rchild))	\
+			break;	\
 		temp = temp->rchild;	\
 	}	\
 	return temp;	\
@@ -175,21 +197,24 @@ node(K,V) *predecessor_##K##_##V(node(K,V) *node) {	\
 	if (node->is_sentinel(temp))	\
 		return NULL;	\
 	else if (node->is_sentinel(temp->lchild)) {	\
-		while (p != NULL && temp != p->rchild) {	\
-			temp = p;	\
-			p = p->parent;	\
+		while (parent != NULL && temp != parent->rchild) {	\
+			temp = parent;	\
+			parent = parent->parent;	\
 		}	\
-		return p;	\
+		return parent;	\
 	}	\
 	else {	\
-		return maximum(temp->lchild);	\
+		return maximum_##K##_##V(temp->lchild);	\
 	}	\
 	return NULL;	\
 }	\
-static inline void set_node_ptr_##K#_##V(node(K,V) *node) {	\
+static inline void set_node_ptr_##K##_##V(node(K,V) *node) {	\
 	node->destroy_node = &destroy_node_##K##_##V;	\
-	node->set_sentinels = &set_sentinels_##K#_##V;	\
+	node->set_sentinels = &set_sentinels_##K##_##V;	\
 	node->is_sentinel = &is_sentinel_##K##_##V;	\
+	node->sibling = &sibling_##K##_##V;	\
+	node->uncle = &uncle_##K##_##V;	\
+	node->grandparent = &grandparent_##K##_##V;	\
 	node->minimum = &minimum_##K##_##V;	\
 	node->maximum = &maximum_##K##_##V;	\
 	node->successor = &successor_##K##_##V;	\
@@ -254,10 +279,11 @@ define_node(K,V)	\
 typedef struct rb_tree_##K##_##V {	\
 	node(K,V) *root;	\
 	node(K,V) *sentinel;	\
-	struct rb_tree_##K##_##V *(*destroy_rbtree)(struct rb_tree_##K##_##V*);	\
+	struct rb_tree_##K##_##V *(*destroy_rbtree)(struct rb_tree_##K##_##V *);	\
 	rbtree_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
 	void (*inorder_traverse)(struct rb_tree_##K##_##V *, node(K,V) *);	\
 	V (*get_value)(struct rb_tree_##K##_##V *, K);	\
+	rbtree_code (*delete_pair)(struct rb_tree_##K##_##V *, K);	\
 } rb_tree_##K##_##V;	\
 	\
 	\
@@ -308,8 +334,10 @@ static inline int compare_bytes(const void *key, const void *nkey, size_t bytes)
 /* This is inline because it is also used by delete */	\
 static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	node(K,V) *temp = tree->root;	\
+	K nkey;	\
 	int result = 0;	\
 	while (temp != tree->sentinel) {	\
+		nkey = temp->key;	\
 		result = compare_bytes(&key, &nkey, sizeof(K));	\
 		if (result == 0)	\
 			return temp;	\
@@ -321,47 +349,16 @@ static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	/* Nullity indicates that the key was not found */	\
 	return NULL;	\
 }	\
-/* 0 indicates that there weren't any errors. holder is null if no repair is needed */	\
-rbtree_code basic_delete_##K##_##V(rb_tree(K,V) *tree, K key, node(K,V) *holder) {	\
-	holder = NULL;	\
-	node(K,V) *node = basic_search_##K##_##V(tree, key);	\
-	if (node == NULL)	\
-		return key_not_found;	\
-	parent(K,V) *parent = node->parent;	\
-	/* If the node has two leaves, then delete if red node is red. Otherwise, return node */	\
-	if (node->is_sentinel(node->lchild) && node->is_sentinel(node->rchild)) {	\
-		if (node->color == BLACK) {	\
-			holder = node;	\
-			return 0;	\
-		}	\
-		(node == parent->lchild) ? (parent->lchild = tree->sentinel) : (parent->rchild = tree->sentinel);	\
-		free(node);	\
-		return 0;	\
-	}	\
-	/* Check case where neither children are leaves */	\
-	else if (!node->is_sentinel(node->lchild) && !node->is_sentinel(node->rchild) {	\
-		/* for now we only worry about finding successor */	\
-		node(K,V) *temp = node->successor(node);	\
-		node->key = temp->key;	\
-		node->value = temp->value;	\
-		temp->parent->rchild = tree->sentinel;	\
-		free(temp);	\
-		return 0;	\
-	}	\
-	/* The remaining case is there is one non-leaf child */	\
-	holder = node;	\
-	return 0;	\
-}	\
+	\
 V get_value_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
-	return (temp != NULL) ? temp->value; 0;	\
+	return (temp != NULL) ? temp->value : 0;	\
 }	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	node(K,V) *node = tree->root;	\
 	node(K,V) *temp = tree->root;	\
 	K nkey;	\
 	int result = 0;	\
-	bool end = false;	\
 	if (node == NULL) {	\
 		temp = new_node(K,V);	\
 		if (temp == NULL)	\
@@ -545,93 +542,142 @@ rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	return 0;	\
 }	\
 	\
-/* basic delete only handles cases where there is no need for tree repair */	\
-/* repair tree delete handles cases where deletion and repair is needed */	\
-/* This helps simplify the code */	\
-rbtree_code repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+/* This function will set the parent of sentinel if v is sentinel */	\
+static inline void transplant_##K##_##V(rb_tree(K,V) *tree, node(K,V) *u, node(K,V) *v) {	\
+	node(K,V) *parent = u->parent;	\
+	if (u->parent == NULL)	\
+		tree->root = v;	\
+	(u == parent->lchild) ? (parent->lchild = v) : (parent->rchild = v);	\
+	v->parent = parent;	\
+}	\
+	\
+static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
-	/* child is whichever node is non sentinel */	\
-	node(K,V) *child = (temp->is_sentinel(temp->rchild)) ? lchild : rchild;	\
-	node(K,V) *p = temp->parent;	\
-	node(K,V) *s = NULL;	\
-	child->parent = p;	\
-	/* Replace temp and child. This is done regardless of whether or not child is red */	\
-	(temp == p->lchild) ? (p->lchild = child) : (p->rchild = rchild);	\
-	temp = child; child = NULL;	\
-	/* This follows the case where node is black and child is red. */	\
-	/* All that is needed in this case is to recolor child to black. */	\
-	/* No other repair is needed */	\
-	if (child->color == RED) {	\
-		child->color = BLACK;	\
-		free(node); node = NULL;	\
-		return 0;	\
-	}	\
-	temp = child;	\
-	/* This covers the case where the node is and non leaf child are both black */	\
-	while (true) {	\
-		/* if parent is null, then temp is root, in which case it is the right color */	\
-		if (temp->parent == NULL)	\
-			break;	\
-		s = sibling(temp);	\
-		if (s->color == RED) {	\
-			/* If the sibling is red, then recolor and rotate parent. Sibling is now at root of subtree */	\
-			p->color = RED;	\
-			s->color = BLACK;	\
-			(temp == p->left) ? rotate_left_##K##_##V(p) : rotate_right_##K##_##V(p);	\
+	node(K,V) *sibling = NULL;	\
+	node(K,V) *parent = NULL;	\
+	bool caseone = false;	\
+	while (temp != tree->root && temp->color == BLACK) {	\
+		caseone = false;	\
+		if (temp == temp->parent->lchild) {	\
+			/* It is implicit that the sibling is the right child of parent */	\
+			sibling = temp->parent->rchild;	\
+			if (sibling->color == RED) {	\
+				sibling->color = BLACK;	\
+				parent->color = RED;	\
+				rotate_left_##K##_##V(tree, temp->parent);	\
+				sibling = temp->parent->rchild;	\
+				caseone = true;	\
+			}	\
+			/* case two terminates if it was entered through case one */	\
+			if (sibling->lchild->color == BLACK && sibling->rchild->color == BLACK) {	\
+				sibling->color = RED;	\
+				temp = temp->parent;	\
+				if (caseone)	\
+					break;	\
+			}	\
+			else if (sibling->rchild->color == BLACK) {	\
+				sibling->lchild->color = BLACK;	\
+				sibling->color = RED;	\
+				rotate_right_##K##_##V(tree, sibling);	\
+				sibling = temp->parent->rchild;	\
+			}	\
+			/* This is set as a separate if statement because case 3 will lead into */	\
+			/* case 4 and case 1 can lead into cases 2,3,4 */	\
+			if (sibling->rchild->color == RED)  {	\
+				sibling->color = temp->parent->color;	\
+				temp->parent->color = BLACK;	\
+				sibling->rchild->color = BLACK;	\
+				rotate_left_##K##_##V(tree, temp->parent);	\
+				/* At the end of case 4, temp is set to root. Just break */	\
+				break;	\
+			}	\
 		}	\
-		s = sibling(temp);	\
-		p = parent(temp);	\
-		/* If parent, sibling, and nephews are all black, then color red and go back to beginning of loop */	\
-		if (p->color == BLACK && s->color == BLACK && s->lchild->color == BLACK && s->rchild->color == BLACK) {	\
-			s->color = RED;	\
-			continue;	\
-		}	\
-		/* If only the parent is red, then recolor p, s and then break */	\
-		else if (p->color == RED && s->color == BLACK && s->lchild->color == BLACK && s->rchild->color == BLACK) {	\
-			s->color = RED;	\
-			p->color = BLACK;	\
-			break;	\
-		}	\
-		if (temp == p->lchild && s->rchild->color == BLACK && s->lchild->color == RED) {	\
-			s->color = RED;	\
-			s->lchild->color = BLACK;	\
-			rotate_right_##K##_##V(s);	\
-		}	\
-		else if (n == p->rchild && s->lchild->color == BLACK && s->rchild->color == RED) {	\
-			s->color = RED;	\
-			s->rchild->color = BLACK;	\
-			rotate_left_##K##_##V(s);	\
-		}	\
-		s = sibling(temp);	\
-		p = parent(temp);	\
-		s->color = p->color;	\
-		p->color = BLACK;	\
-		if (temp == p->lchild) {	\
-			s->rchild->color = BLACK;	\
-			rotate_left_##K##_##V(p);	\
-			break;	\
-		}	\
+		/* This is literally the exact same except left and right are switche */	\
 		else {	\
-			s->lchild->color = BLACK;	\
-			rotate_right_##K##_##V(p);	\
-			break;	\
+			sibling = temp->parent->lchild;	\
+			if (sibling->color == RED) {	\
+				sibling->color = BLACK;	\
+				temp->parent->color = RED;	\
+				rotate_right_##K##_##V(tree, temp->parent);	\
+				sibling = temp->parent->lchild;	\
+				caseone = true;	\
+			}	\
+			if (sibling->rchild->color == BLACK && sibling->lchild->color == BLACK) {	\
+				sibling->color = RED;	\
+				temp = temp->parent;	\
+				if (caseone)	\
+					break;	\
+			}	\
+			else if (sibling->lchild->color == BLACK) {	\
+				sibling->rchild->color = BLACK;	\
+				sibling->color = RED;	\
+				rotate_left_##K##_##V(tree, sibling);	\
+				sibling = temp->parent->lchild;	\
+			}	\
+			if (sibling->lchild->color == RED) {	\
+				sibling->color = temp->parent->color;	\
+				temp->parent->color = BLACK;	\
+				sibling->lchild->color = BLACK;	\
+				rotate_right_##K##_##V(tree, temp->parent);	\
+				break;	\
+			}	\
 		}	\
 	}	\
-	free(node); node = NULL;	\
-	return 0;	\
+	temp->color = BLACK;	\
 }	\
+	\
+/* This implementation is inspired by pseudocode provided by Cormon's */	\
+/* introduction to algorithms, third edition */	\
 rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
-	node(K,V) *temp = NULL;	\
-	rbtree_code result = 0;	\
-	result = basic_delete_##K##_##V(tree, key, temp);	\
-	/* if temp is null there is either an error or no repair is necessary */	\
-	if (temp == NULL && key == 0)	\
-		return 0;	\
-	else if (temp == NULL && key != 0)	\
-		return result;	\
-	repair_tree_delete_##K##_##V(tree, temp);	\
-	return 0;	\
+	node(K,V) *node = basic_search_##K##_##V(tree, key);	\
+	/* mover is either moved out of or within tree */	\
+	node(K,V) *mover = node;	\
+	/* rmover replaces mover's original position */	\
+	node(K,V) *rmover = NULL;	\
+	if (node == NULL) {	\
+		return key_not_found;	\
+	}	\
+	/* ocolor keeps track of y's original color */	\
+	color_t ocolor = node->color;	\
+	/* Replace node with its right child */	\
+	if (node->is_sentinel(node->lchild)) {	\
+		rmover = node->rchild;	\
+		transplant_##K##_##V(tree, node, node->rchild);	\
+	}	\
+	/* Replace node with its left child */	\
+	else if (node->is_sentinel(node->rchild)) {	\
+		rmover = node->lchild;	\
+		transplant_##K##_##V(tree, node, node->lchild);	\
+	}	\
+	/* mover points to successor. mover replaces node */	\
+	else {	\
+		mover = node->minimum(node->rchild);	\
+		ocolor = mover->color;	\
+		rmover = mover->rchild;	\
+		/* we plan to remove node, so rmover->parent cant be node */	\
+		if (mover->parent == node)	\
+			rmover->parent = mover;	\
+		else {	\
+			transplant_##K##_##V(tree, mover, mover->rchild);	\
+			mover->rchild = node->rchild;	\
+			mover->rchild->parent = mover;	\
+		}	\
+		transplant_##K##_##V(tree, node, mover);	\
+		mover->lchild = node->lchild;	\
+		mover->lchild->parent = mover;	\
+		mover->color = node->color;	\
+	}	\
+	/* One or more violations have been introduced if mover was originally black */	\
+	if (ocolor == BLACK) {	\
+		repair_tree_delete_##K##_##V(tree, rmover);	\
+		/* Sentinels should not have parents, so once we're done, have the parents point to null */	\
+		if (rmover->is_sentinel(rmover))	\
+			rmover->parent = NULL;	\
+	}	\
+	/* delete node at the end */	\
+	free(node);	\
 }	\
+	\
 void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
 	/* Only the sentinel has function pointers set to null */	\
 	if (node->set_sentinels == NULL && node->destroy_node == NULL)	\
@@ -651,6 +697,7 @@ void set_rbtree_ptr_##K##_##V(rb_tree(K,V) *tree) {	\
 	tree->insert = &insert_##K##_##V;	\
 	tree->inorder_traverse = &inorder_traverse_##K##_##V;	\
 	tree->get_value = &get_value_##K##_##V;	\
+	tree->delete_pair = &delete_##K##_##V;	\
 }	\
 	\
 rb_tree(K,V) *new_rbtree_##K##_##V() {	\
