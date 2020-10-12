@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-#include <endian.h>
 #include <stdint.h>
 
 #define PRINT_COLOR(NODE)	fprintf(stderr, "%s", NODE->color == RED ? "RED" : "BLACK")
@@ -71,12 +70,33 @@ typedef enum rbtree_code {
  * NOTES: This will create and initialize two sentinal children
  */
 
-/* Eventually, node will be designed so that node_##K##_##V will have a
- * pointer to a generic node. The generic node will have the pointers to
- * parent, rchild, lchild. In addition, sibling through predecessor will
- * also belong to generic node. The key value pair and color will then be
- * part of node_##K##_##V
+/* node_generic contains all of the operations and members that are common to all nodes.
+ * node_generic will be a member of node_##K##_##V (not as a pointer). By using indirection,
+ * it can appear as though the node_generic members and operations belong to node_##K##_##V.
+ * It seems that this could be used to implement a kind of inheritance in C. The real advantage
+ * to node_generic is that the functions and struct will only need to be defined once. I think
+ * that will make a big difference in terms of executable size. My original method will lead to
+ * the same functions being defined repeatedly for each node_##K##_##V defined. 
+ * The purpose of kvnodesize is to allow for efficient copying of nodes
  */
+
+typedef struct node_generic {
+	color_t color;
+	struct node_generic *parent;
+	struct node_generic *rchild;
+	struct node_generic *lchild;
+	bool (*is_sentinel)(struct node_generic*);
+	struct node_generic *(*set_sentinels)(struct node_generic*, struct node_generic*);
+	struct node_generic *(*sibling)(struct node_generic*);
+	struct node_generic *(*uncle)(struct node_generic*);
+	struct node_generic *(*grandparent)(struct node_generic*);
+	struct node_generic *(*minimum)(struct node_generic*);
+	struct node_generic *(*maximum)(struct node_generic*);
+	struct node_generic *(*successor)(struct node_generic*);
+	struct node_generic *(*predecessor)(struct node_generic*);
+	size_t kvnodesize;	// This contains the size of the kv node struct, not the generic node struct
+} node_generic;
+
 #define define_node(K,V)	\
 typedef struct node_##K##_##V {	\
 	color_t color;	\
@@ -124,6 +144,8 @@ node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
 static inline node(K,V) *make_sentinel_##K##_##V() {	\
 	node(K,V) *node = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
 	node->color = BLACK;	\
+	/* this is done so that sentinels are able to check if they are sentinels */	\
+	node->is_sentinel = &is_sentinel_##K##_##V;	\
 	\
 	return node;	\
 }	\
@@ -649,6 +671,7 @@ rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	tree->sentinel->parent = NULL;	\
 	/* delete node at the end */	\
 	free(node);	\
+	return 0;	\
 }	\
 	\
 void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
