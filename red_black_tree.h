@@ -330,16 +330,17 @@ static inline void print_bytes(const void *key, size_t bytes) {	\
 /* memcmp does not account for endianness. This could mess up the insert function */	\
 /* This comparison function accounts for endianness. */	\
 static inline int compare_little_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {	\
-	for (size_t i = bytes - 1; i >= 0; --i) {	\
-		if (key[i] > nkey[i])	\
+	for (int i = bytes - 1; i >= 0; --i) {	\
+		if (key[i] > nkey[i]) {	\
 			return 1;	\
+		}	\
 		else if (key[i] < nkey[i])	\
 			return -1;	\
 	}	\
 	return 0;	\
 }	\
 static inline int compare_big_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {	\
-	for (size_t i = 0; i < bytes; ++i) {	\
+	for (int i = 0; i < bytes; ++i) {	\
 		if (key[i] >  nkey[i])	\
 			return 1;	\
 		else if (key[i] <  nkey[i])	\
@@ -373,9 +374,15 @@ static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 }	\
 	\
 V get_value_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	K k;	\
 	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
-	return (temp != NULL) ? temp->value : 0;	\
+	if (temp != NULL)	\
+		k = temp->value;	\
+	else	\
+		memset(&k, 0, sizeof(K));	\
+	return k;	\
 }	\
+	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	node(K,V) *node = tree->root;	\
 	node(K,V) *temp = tree->root;	\
@@ -543,7 +550,8 @@ static inline void transplant_##K##_##V(rb_tree(K,V) *tree, node(K,V) *u, node(K
 	node(K,V) *parent = u->parent;	\
 	if (u->parent == NULL)	\
 		tree->root = v;	\
-	(u == parent->lchild) ? (parent->lchild = v) : (parent->rchild = v);	\
+	else	\
+		(u == parent->lchild) ? (parent->lchild = v) : (parent->rchild = v);	\
 	v->parent = parent;	\
 }	\
 	\
@@ -552,17 +560,24 @@ static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 	node(K,V) *sibling = NULL;	\
 	node(K,V) *parent = NULL;	\
 	bool caseone = false;	\
+	/* Sibling will be set manually instead of using the function pointer */	\
+	/* The reason for this is that the temp may be a sentinel */	\
 	while (temp != tree->root && temp->color == BLACK) {	\
 		caseone = false;	\
 		if (temp == temp->parent->lchild) {	\
 			/* It is implicit that the sibling is the right child of parent */	\
-			sibling = temp->sibling(temp);	\
+			sibling = temp->parent->rchild;	\
 			if (sibling->color == RED) {	\
 				sibling->color = BLACK;	\
-				parent->color = RED;	\
+				temp->parent->color = RED;	\
 				rotate_left_##K##_##V(tree, temp->parent);	\
-				sibling = temp->sibling(temp);	\
+				sibling = temp->parent->rchild;	\
 				caseone = true;	\
+				/* See below mirror case */	\
+				if (sibling->is_sentinel(sibling)) {	\
+					fprintf(stderr, "Sibling is sentinel. Exiting\n");	\
+					break;	\
+				}	\
 			}	\
 			/* case two terminates if it was entered through case one */	\
 			if (sibling->lchild->color == BLACK && sibling->rchild->color == BLACK) {	\
@@ -575,7 +590,7 @@ static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 				sibling->lchild->color = BLACK;	\
 				sibling->color = RED;	\
 				rotate_right_##K##_##V(tree, sibling);	\
-				sibling = temp->sibling(temp);	\
+				sibling = temp->parent->rchild;	\
 			}	\
 			/* This is set as a separate if statement because case 3 will lead into */	\
 			/* case 4 and case 1 can lead into cases 2,3,4 */	\
@@ -588,15 +603,22 @@ static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 				break;	\
 			}	\
 		}	\
-		/* This is literally the exact same except left and right are switche */	\
+		/* This is literally the exact same except left and right are switched */	\
 		else {	\
-			sibling = temp->sibling(temp);	\
+			sibling = temp->parent->lchild;	\
 			if (sibling->color == RED) {	\
 				sibling->color = BLACK;	\
 				temp->parent->color = RED;	\
 				rotate_right_##K##_##V(tree, temp->parent);	\
-				sibling = temp->sibling(temp);	\
+				sibling = temp->parent->lchild;	\
 				caseone = true;	\
+				/* In rare cases, the sibling ends up being a sentinel. */ \
+				/* It doesn't make sense to continue since sentinels have no */	\
+				/* children */	\
+				if (sibling->is_sentinel(sibling)) {	\
+					fprintf(stderr, "sibling is sentinel. Exiting\n");	\
+					break;	\
+				}	\
 			}	\
 			if (sibling->rchild->color == BLACK && sibling->lchild->color == BLACK) {	\
 				sibling->color = RED;	\
@@ -608,7 +630,7 @@ static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 				sibling->rchild->color = BLACK;	\
 				sibling->color = RED;	\
 				rotate_left_##K##_##V(tree, sibling);	\
-				sibling = temp->sibling(temp);	\
+				sibling = temp->parent->lchild;	\
 			}	\
 			if (sibling->lchild->color == RED) {	\
 				sibling->color = temp->parent->color;	\
@@ -647,7 +669,7 @@ rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	}	\
 	/* mover points to successor. mover replaces node */	\
 	else {	\
-		mover = node->minimum(node->rchild);	\
+		mover = node->successor(node);	\
 		ocolor = mover->color;	\
 		rmover = mover->rchild;	\
 		/* we plan to remove node, so rmover->parent cant be node */	\
@@ -665,6 +687,7 @@ rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	}	\
 	/* One or more violations have been introduced if mover was originally black */	\
 	if (ocolor == BLACK) {	\
+		fprintf(stderr, "Entering deletion repair\n");	\
 		repair_tree_delete_##K##_##V(tree, rmover);	\
 	}	\
 	/* At the end, set the sentinel's parent back to NULL in case its parent was set */	\
@@ -679,9 +702,7 @@ void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
 	if (node->is_sentinel(node))	\
 		return;	\
 	inorder_traverse_##K##_##V(tree, node->lchild);	\
-	if (node->parent == NULL)	\
-		fprintf(stderr, "Root node\n");	\
-	else	\
+	if (node->parent != NULL)	\
 		fprintf(stderr, "Node is the child of %d\n", node->parent->key);	\
 	fprintf(stderr, "Key: %d, Value: %c\n", node->key, node->value);	\
 	fprintf(stderr, "Color: "); PRINT_COLOR(node); fprintf(stderr, "\n");	\
