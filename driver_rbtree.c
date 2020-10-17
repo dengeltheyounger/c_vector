@@ -1,7 +1,7 @@
-#include <stdio.h>
+/*#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <stddef.h>
+#include <stddef.h>*/
 #include "red_black_tree.h"
 
 define_rbtree(int, char)
@@ -47,7 +47,6 @@ int main() {
 	srand(time(NULL));
 	int key;
 	char value;
-	node(int, char) *node = NULL;
 	rbtree_code result;
 	
 	key_holder holder;
@@ -55,22 +54,6 @@ int main() {
 	holder.nextindex = 0;
 	
 	printf("Endianness of machine: %s\n", (ENDIANNESS == BIG) ? "BIG" : "LITTLE");
-
-	fprintf(stderr, "Testing new_node function\n");
-	
-	node = new_node(int, char);
-	
-	if (node == NULL) {
-		fprintf(stderr, "Error creating node!\n");
-		return 1;
-	}
-	
-	fprintf(stderr, "new_node function testing successful\n");
-	fprintf(stderr, "Testing destroy_node function\n");
-	
-	node = node->destroy_node(node);
-	
-	fprintf(stderr, "destroy_node function testing successful\n");
 	
 	rb_tree(int, char) *tree = NULL;
 	
@@ -97,7 +80,7 @@ int main() {
 	}
 	
 	for (size_t i = 0; i < 10; ++i) {
-		fprintf(stderr, "Insertion %d\nKey: %d\n", i, holder.keyset[i]);
+		fprintf(stderr, "Insertion %ld\nKey: %d\n", i, holder.keyset[i]);
 		tree->insert(tree, holder.keyset[i], value);
 	}
 	

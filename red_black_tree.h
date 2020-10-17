@@ -1,11 +1,11 @@
 #ifndef RED_BLACK_TREE
 #define RED_BLACK_TREE
-#include <stdio.h>
+/*#include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-#include <stdint.h>
+#include <stdint.h>*/
 
 #define PRINT_COLOR(NODE)	fprintf(stderr, "%s", NODE->color == RED ? "RED" : "BLACK")
 
@@ -545,158 +545,160 @@ rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	return 0;	\
 }	\
 	\
-/* This function will set the parent of sentinel if v is sentinel */	\
-static inline void transplant_##K##_##V(rb_tree(K,V) *tree, node(K,V) *u, node(K,V) *v) {	\
-	node(K,V) *parent = u->parent;	\
-	if (u->parent == NULL)	\
-		tree->root = v;	\
-	else	\
-		(u == parent->lchild) ? (parent->lchild = v) : (parent->rchild = v);	\
-	v->parent = parent;	\
+/* Switch node and child */	\
+static inline void transplant_##K##_##V(node(K,V) *node, node(K,V) *child) {	\
+	child->parent = node->parent;	\
+	(node == node->parent->lchild) ? (node->parent->lchild = child) : (node->parent->rchild = child);	\
 }	\
 	\
-static inline void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+/* basic delete is basic in the sense that it doesn't handle repair	*/	\
+static inline node(K,V) *basic_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	node(K,V) *temp = node;	\
-	node(K,V) *sibling = NULL;	\
-	node(K,V) *parent = NULL;	\
-	bool caseone = false;	\
-	/* Sibling will be set manually instead of using the function pointer */	\
-	/* The reason for this is that the temp may be a sentinel */	\
-	while (temp != tree->root && temp->color == BLACK) {	\
-		caseone = false;	\
-		if (temp == temp->parent->lchild) {	\
-			/* It is implicit that the sibling is the right child of parent */	\
-			sibling = temp->parent->rchild;	\
-			if (sibling->color == RED) {	\
-				sibling->color = BLACK;	\
-				temp->parent->color = RED;	\
-				rotate_left_##K##_##V(tree, temp->parent);	\
-				sibling = temp->parent->rchild;	\
-				caseone = true;	\
-				/* See below mirror case */	\
-				if (sibling->is_sentinel(sibling)) {	\
-					fprintf(stderr, "Sibling is sentinel. Exiting\n");	\
-					break;	\
-				}	\
-			}	\
-			/* case two terminates if it was entered through case one */	\
-			if (sibling->lchild->color == BLACK && sibling->rchild->color == BLACK) {	\
-				sibling->color = RED;	\
-				temp = temp->parent;	\
-				if (caseone)	\
-					break;	\
-			}	\
-			else if (sibling->rchild->color == BLACK) {	\
-				sibling->lchild->color = BLACK;	\
-				sibling->color = RED;	\
-				rotate_right_##K##_##V(tree, sibling);	\
-				sibling = temp->parent->rchild;	\
-			}	\
-			/* This is set as a separate if statement because case 3 will lead into */	\
-			/* case 4 and case 1 can lead into cases 2,3,4 */	\
-			if (sibling->rchild->color == RED)  {	\
-				sibling->color = temp->parent->color;	\
-				temp->parent->color = BLACK;	\
-				sibling->rchild->color = BLACK;	\
-				rotate_left_##K##_##V(tree, temp->parent);	\
-				/* At the end of case 4, temp is set to root. Just break */	\
-				break;	\
-			}	\
+	/* case where both children are not sentinels */	\
+	/* tree does not need its root updated since the node is copied over */	\
+	if (!temp->rchild->is_sentinel(temp->rchild) && !temp->lchild->is_sentinel(temp->lchild)) {	\
+		node(K,V) *successor = temp->rchild->minimum(temp->rchild);	\
+		temp->key = successor->key;	\
+		temp->value = successor->value;	\
+		/* If either child is a non sentinel, then assign to the parent of successor */	\
+		if (!successor->lchild->is_sentinel(successor->lchild))	\
+			transplant_##K##_##V(successor, successor->lchild);	\
+			\
+		else if (!successor->rchild->is_sentinel(successor->rchild))	\
+			transplant_##K##_##V(successor, successor->rchild);	\
+		/* Both of successor's children are null means that successor's */	\
+		/* spot can be sentinel in the parent of successor */	\
+		else if (successor->rchild->is_sentinel(successor->rchild) &&	\
+				successor->lchild->is_sentinel(successor->lchild)) {	\
+			(successor == successor->parent->lchild)	\
+								? (successor->parent->lchild = tree->sentinel)	\
+								: (successor->parent->rchild = tree->sentinel);	\
 		}	\
-		/* This is literally the exact same except left and right are switched */	\
-		else {	\
-			sibling = temp->parent->lchild;	\
-			if (sibling->color == RED) {	\
-				sibling->color = BLACK;	\
-				temp->parent->color = RED;	\
-				rotate_right_##K##_##V(tree, temp->parent);	\
-				sibling = temp->parent->lchild;	\
-				caseone = true;	\
-				/* In rare cases, the sibling ends up being a sentinel. */ \
-				/* It doesn't make sense to continue since sentinels have no */	\
-				/* children */	\
-				if (sibling->is_sentinel(sibling)) {	\
-					fprintf(stderr, "sibling is sentinel. Exiting\n");	\
-					break;	\
-				}	\
-			}	\
-			if (sibling->rchild->color == BLACK && sibling->lchild->color == BLACK) {	\
-				sibling->color = RED;	\
-				temp = temp->parent;	\
-				if (caseone)	\
-					break;	\
-			}	\
-			else if (sibling->lchild->color == BLACK) {	\
-				sibling->rchild->color = BLACK;	\
-				sibling->color = RED;	\
-				rotate_left_##K##_##V(tree, sibling);	\
-				sibling = temp->parent->lchild;	\
-			}	\
-			if (sibling->lchild->color == RED) {	\
-				sibling->color = temp->parent->color;	\
-				temp->parent->color = BLACK;	\
-				sibling->lchild->color = BLACK;	\
-				rotate_right_##K##_##V(tree, temp->parent);	\
-				break;	\
-			}	\
+		free(successor);	\
+		return NULL;	\
+	}	\
+	/* if both children are sentinels, then we can go ahead and just delete the node */	\
+	else if (temp->rchild->is_sentinel(temp->rchild) && temp->lchild->is_sentinel(temp->lchild)) {	\
+		/* If the node in question is root, then set tree root to null */	\
+		if (temp == tree->root)	\
+			tree->root = NULL;	\
+		/* The parent of the node being deleted replaces the node with a sentinel */	\
+		else	\
+			(temp == temp->parent->lchild) ? (temp->parent->lchild = tree->sentinel) : (temp->parent->rchild = tree->sentinel);	\
+		free(node);	\
+		return NULL;	\
+	}	\
+	/* in the final case, one child is non-leaf and the other is a sentinel */	\
+	else {	\
+		node(K,V) *child = (temp->rchild == tree->sentinel) ? temp->lchild : temp->rchild;	\
+		transplant_##K##_##V(temp, child);	\
+		/* The case where temp is red is trivial. This only happens when both children are sentinels */	\
+		/* This was already handled */	\
+		if (temp->color == BLACK) {	\
+			if (child->color == BLACK)	\
+				return child;	\
+			child->color = BLACK;	\
+			free(node);	\
+			return NULL;	\
 		}	\
 	}	\
-	temp->color = BLACK;	\
+	/* The function should never get to this point */	\
+	return NULL;	\
 }	\
 	\
-/* This implementation is inspired by pseudocode provided by Cormon's */	\
-/* introduction to algorithms, third edition */	\
-rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
-	node(K,V) *node = basic_search_##K##_##V(tree, key);	\
-	/* mover is either moved out of or within tree */	\
-	node(K,V) *mover = node;	\
-	/* rmover replaces mover's original position */	\
-	node(K,V) *rmover = NULL;	\
-	if (node == NULL) {	\
-		return key_not_found;	\
-	}	\
-	/* ocolor keeps track of y's original color */	\
-	color_t ocolor = node->color;	\
-	/* Replace node with its right child */	\
-	if (node->is_sentinel(node->lchild)) {	\
-		rmover = node->rchild;	\
-		transplant_##K##_##V(tree, node, node->rchild);	\
-	}	\
-	/* Replace node with its left child */	\
-	else if (node->is_sentinel(node->rchild)) {	\
-		rmover = node->lchild;	\
-		transplant_##K##_##V(tree, node, node->lchild);	\
-	}	\
-	/* mover points to successor. mover replaces node */	\
-	else {	\
-		mover = node->successor(node);	\
-		ocolor = mover->color;	\
-		rmover = mover->rchild;	\
-		/* we plan to remove node, so rmover->parent cant be node */	\
-		if (mover->parent == node)	\
-			rmover->parent = mover;	\
-		else {	\
-			transplant_##K##_##V(tree, mover, mover->rchild);	\
-			mover->rchild = node->rchild;	\
-			mover->rchild->parent = mover;	\
+/* Altering node/child does not actually matter since the caller never uses it */	\
+/* after repair tree returns. Since I have a temp node equal to the node parameter */	\
+/* for every other function, I'm going to do that here as well in order to avoid confusion */	\
+/* This code is based on code from Wikipedia. The algorithm has been altered in multiple ways, however. */	\
+void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
+	node(K,V) *temp = node;	\
+	/* Using while loop avoid need to use recursion */	\
+	while (true) {	\
+		/* inverse of case 1 */	\
+		if (temp->parent == NULL) {	\
+			return;	\
 		}	\
-		transplant_##K##_##V(tree, node, mover);	\
-		mover->lchild = node->lchild;	\
-		mover->lchild->parent = mover;	\
-		mover->color = node->color;	\
+		node(K,V) *sibling = temp->sibling(temp);	\
+		/* case two moves to case three */	\
+		if (sibling->color == RED) {	\
+			temp->parent->color = RED;	\
+			sibling->color = BLACK;	\
+			/* rotate right or left depending on which child temp is */	\
+			(temp == temp->parent->rchild) ? rotate_right_##K##_##V(tree, temp->parent) :	\
+					rotate_left_##K##_##V(tree, temp->parent);	\
+		}	\
+		sibling = temp->sibling(temp);	\
+		/* case three goes back to case one */	\
+		if (temp->parent->color == BLACK && sibling->color == BLACK && 	\
+			sibling->rchild->color == BLACK && sibling->lchild->color == BLACK) {	\
+			sibling->color = RED;	\
+			temp = temp->parent;	\
+			continue;	\
+		}	\
+		sibling = temp->sibling(temp);	\
+		/* case four exits when it is finished */	\
+		if (temp->parent->color == RED && sibling->color == BLACK &&	\
+			sibling->lchild == BLACK && sibling->rchild == BLACK) {	\
+			sibling->color = RED;	\
+			temp->parent->color = BLACK;	\
+			return;	\
+		}	\
+		sibling = temp->sibling(temp);	\
+		/* case five proceeds to case six */	\
+		if (sibling->color == BLACK) {	\
+			if (temp == temp->parent->lchild && sibling->rchild == BLACK &&	\
+				sibling->lchild->color == RED) {	\
+				sibling->color = RED;	\
+				sibling->lchild->color = BLACK;	\
+				rotate_right_##K##_##V(tree, sibling);	\
+			}	\
+			else if (temp == temp->parent->rchild && sibling->lchild->color == BLACK &&	\
+					sibling->rchild->color == RED) {	\
+				sibling->color = RED;	\
+				sibling->rchild->color = BLACK;	\
+				rotate_left_##K##_##V(tree, sibling);	\
+			}	\
+		}	\
+		sibling = temp->sibling(temp);	\
+		sibling->color = temp->parent->color;	\
+		temp->parent->color = BLACK;	\
+		\
+		/* case six exits on finish */	\
+		if (temp == temp->parent->lchild) {	\
+			sibling->rchild->color = BLACK;	\
+			rotate_left_##K##_##V(tree, temp->parent);	\
+		}	\
+		else {	\
+			sibling->lchild->color = BLACK;	\
+			rotate_right_##K##_##V(tree, temp->parent);	\
+		}	\
+		return;	\
 	}	\
-	/* One or more violations have been introduced if mover was originally black */	\
-	if (ocolor == BLACK) {	\
-		fprintf(stderr, "Entering deletion repair\n");	\
-		repair_tree_delete_##K##_##V(tree, rmover);	\
+}	\
+	\
+rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
+	node(K,V) *child = NULL;	\
+	if (temp == NULL)	\
+		return key_not_found;	\
+	\
+	child = basic_delete_##K##_##V(tree, temp);		\
+	/* NULL indicates that no tree repair is necessary */	\
+	if (child == NULL)	\
+		return 0;	\
+	/* basic delete does not delete the node in question when a child */	\
+	/* is returned. This is necessary for tree repair. */	\
+	/* For this reason, temp is freed after repair tree returns */	\
+	else {	\
+		repair_tree_delete_##K##_##V(tree, child);	\
+		/* if the deleted node is root, then child replaces node as root */	\
+		if (temp == tree->root)	\
+			tree->root = child;	\
+		free(temp);	\
 	}	\
-	/* At the end, set the sentinel's parent back to NULL in case its parent was set */	\
-	tree->sentinel->parent = NULL;	\
-	/* delete node at the end */	\
-	free(node);	\
+	\
 	return 0;	\
 }	\
-	\
 void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
 	/* No need to print sentinel */	\
 	if (node->is_sentinel(node))	\
