@@ -70,188 +70,187 @@ typedef enum rbtree_code {
  * NOTES: This will create and initialize two sentinal children
  */
 
-/* node_generic contains all of the operations and members that are common to all nodes.
- * node_generic will be a member of node_##K##_##V (not as a pointer). By using indirection,
- * it can appear as though the node_generic members and operations belong to node_##K##_##V.
+/* generic_node contains all of the operations and members that are common to all nodes.
+ * generic_node will be a member of node_##K##_##V (not as a pointer). By using indirection,
+ * it can appear as though the generic_node members and operations belong to node_##K##_##V.
  * It seems that this could be used to implement a kind of inheritance in C. The real advantage
- * to node_generic is that the functions and struct will only need to be defined once. I think
+ * to generic_node is that the functions and struct will only need to be defined once. I think
  * that will make a big difference in terms of executable size. My original method will lead to
  * the same functions being defined repeatedly for each node_##K##_##V defined. 
  * The purpose of kvnodesize is to allow for efficient copying of nodes
  */
 
-typedef struct node_generic {
+typedef struct generic_node {
 	color_t color;
-	struct node_generic *parent;
-	struct node_generic *rchild;
-	struct node_generic *lchild;
-	bool (*is_sentinel)(struct node_generic*);
-	struct node_generic *(*set_sentinels)(struct node_generic*, struct node_generic*);
-	struct node_generic *(*sibling)(struct node_generic*);
-	struct node_generic *(*uncle)(struct node_generic*);
-	struct node_generic *(*grandparent)(struct node_generic*);
-	struct node_generic *(*minimum)(struct node_generic*);
-	struct node_generic *(*maximum)(struct node_generic*);
-	struct node_generic *(*successor)(struct node_generic*);
-	struct node_generic *(*predecessor)(struct node_generic*);
+	struct generic_node *parent;
+	struct generic_node *rchild;
+	struct generic_node *lchild;
+	struct generic_node *(*destroy_gnode)(struct generic_node*);
+	bool (*is_sentinel)(struct generic_node*);
+	struct generic_node *(*set_sentinels)(struct generic_node*, struct generic_node*);
+	struct generic_node *(*sibling)(struct generic_node*);
+	struct generic_node *(*uncle)(struct generic_node*);
+	struct generic_node *(*grandparent)(struct generic_node*);
+	struct generic_node *(*minimum)(struct generic_node*);
+	struct generic_node *(*maximum)(struct generic_node*);
+	struct generic_node *(*successor)(struct generic_node*);
+	struct generic_node *(*predecessor)(struct generic_node*);
 	size_t kvnodesize;	// This contains the size of the kv node struct, not the generic node struct
-} node_generic;
+} generic_node;
+
+static inline bool is_sentinel(generic_node *node) {
+	bool result = true;
+	if (node->lchild != NULL && node->rchild != NULL)
+		result = false;
+	return result;
+}
+
+static inline generic_node *make_sentinel() {
+	generic_node *node = (generic_node *) calloc(1, sizeof(generic_node));
+	node->color = BLACK;
+	/* this is done so that sentinels are able to check if they are sentinels */
+	node->is_sentinel = &is_sentinel;
+	return node;
+}
+
+generic_node *set_sentinels(generic_node *node, generic_node *sentinel) {
+	if (sentinel == NULL) {
+		sentinel = make_sentinel(sentinel);
+		if (sentinel == NULL)
+			return NULL;
+	}
+	node->rchild = sentinel;
+	node->lchild = sentinel;
+	return sentinel;
+}
+
+generic_node *destroy_gnode(generic_node *node) {
+	if (node == NULL)
+		return NULL;
+	/* only a sentinel will have null children. the tree will take care of this */
+	else if (node->is_sentinel(node))
+		return NULL;
+	if (node->rchild != NULL) {
+		node->rchild = destroy_gnode(node->rchild);
+	}
+	
+	if (node->lchild != NULL)
+		node->lchild = destroy_gnode(node->lchild);
+
+	fprintf(stderr, "Address of node being destroyed %p\n", (void *) node);
+	free(node);
+	return NULL;
+}
+
+generic_node *sibling(generic_node *node) {
+	if (node == NULL)
+		return NULL;
+	generic_node *p = node->parent;
+	if (p == NULL)
+		return NULL;
+	return (node == p->lchild) ? p->rchild : p->lchild;
+}
+
+generic_node *uncle(generic_node *node) {
+	generic_node *p = node->parent;
+	return p->sibling(p);
+}
+
+generic_node *grandparent(generic_node *node) {
+	generic_node *p = node->parent;
+	return (p == NULL) ? NULL : p->parent;
+}
+
+generic_node *minimum(generic_node *node) {
+	generic_node *temp = node;
+	while (!temp->is_sentinel(temp)) {
+		if (temp->is_sentinel(temp->lchild))
+			break;
+		temp = temp->lchild;
+	}
+	return temp;
+}
+
+generic_node *maximum(generic_node *node) {
+	generic_node *temp = node;
+	while (!node->is_sentinel(temp)) {
+		if (temp->is_sentinel(temp->rchild))
+			break;
+		temp = temp->rchild;
+	}
+	return temp;
+}
+
+generic_node *successor(generic_node *node) {
+	generic_node *temp = node;
+	generic_node *p = node->parent;
+	if (node->is_sentinel(temp))
+		return NULL;
+	else if (node->is_sentinel(temp->rchild)) {
+		while (p != NULL && temp != p->lchild) {
+			temp = p;
+			p = p->parent;
+		}
+		return p;
+	}
+	else {
+		return minimum(temp->rchild);
+	}
+	return NULL;
+}
+
+generic_node *predecessor(generic_node *node) {
+	generic_node *temp = node;
+	generic_node *parent = node->parent;
+	if (node->is_sentinel(temp))
+		return NULL;
+	else if (node->is_sentinel(temp->lchild)) {
+		while (parent != NULL && temp != parent->rchild) {
+			temp = parent;
+			parent = parent->parent;
+		}
+		return parent;
+	}
+	else {
+		return maximum(temp->lchild);
+	}
+	return NULL;
+}
+
+static inline void set_node_ptr(generic_node *node) {
+	node->destroy_gnode = &destroy_gnode;
+	node->set_sentinels = &set_sentinels;
+	node->is_sentinel = &is_sentinel;
+	node->sibling = &sibling;
+	node->uncle = &uncle;
+	node->grandparent = &grandparent;
+	node->minimum = &minimum;
+	node->maximum = &maximum;
+	node->successor = &successor;
+	node->predecessor = &predecessor;
+}
 
 #define define_node(K,V)	\
 typedef struct node_##K##_##V {	\
-	color_t color;	\
+	generic_node gen_node;	\
 	K key;	\
 	V value;	\
-	struct node_##K##_##V *parent;	\
-	struct node_##K##_##V *rchild;	\
-	struct node_##K##_##V *lchild;	\
-	struct node_##K##_##V *(*destroy_node)(struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*set_sentinels)(struct node_##K##_##V*, struct node_##K##_##V*);	\
-	bool (*is_sentinel)(struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*sibling)(struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*uncle)(struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*grandparent)(struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*minimum)(struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*maximum)(struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*successor)(struct node_##K##_##V*);	\
-	struct node_##K##_##V *(*predecessor)(struct node_##K##_##V*);	\
 } node_##K##_##V;	\
 	\
-static inline bool is_sentinel_##K##_##V(node(K,V) *node) {	\
-	bool result = true;	\
-	if (node->lchild != NULL && node->rchild != NULL)	\
-		result = false;	\
-	return result;	\
-}	\
-node(K,V) *destroy_node_##K##_##V(node(K,V) *node) {	\
-	if (node == NULL) \
-		return NULL;	\
-	/* only a sentinel will have null children. the tree will take care of this */ \
-	else if (node->is_sentinel(node))	\
-		return NULL;	\
-						\
-	if (node->rchild != NULL) {	\
-		node->rchild = destroy_node_##K##_##V(node->rchild);	\
-	}	\
-	\
-	if (node->lchild != NULL) \
-		node->lchild = destroy_node_##K##_##V(node->lchild);	\
-	\
-	free(node);	\
-	return NULL;	\
-}	\
-	\
-static inline node(K,V) *make_sentinel_##K##_##V() {	\
-	node(K,V) *node = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
-	node->color = BLACK;	\
-	/* this is done so that sentinels are able to check if they are sentinels */	\
-	node->is_sentinel = &is_sentinel_##K##_##V;	\
-	\
-	return node;	\
-}	\
-	\
-node(K,V) *set_sentinels_##K##_##V(node(K,V) *node, node(K,V) *sentinel) {	\
-	if (sentinel == NULL) {	\
-		sentinel = make_sentinel_##K##_##V(sentinel);	\
-		if (sentinel == NULL)	\
-			return NULL;	\
-	}						\
-	node->rchild = sentinel;	\
-	node->lchild = sentinel;	\
-	return sentinel;	\
-}	\
-	\
-node(K,V) *sibling_##K##_##V(node(K,V) *node) {	\
-	if (node == NULL)	\
-		return NULL;	\
-	node(K,V) *p = node->parent;	\
-	if (p == NULL)	\
-		return NULL;	\
-	return (node == p->lchild) ? p->rchild : p->lchild;	\
-}	\
-node(K,V) *uncle_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *p = node->parent;	\
-	return p->sibling(p);	\
-}	\
-node(K,V) *grandparent_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *p = node->parent;	\
-	return (p == NULL) ? NULL : p->parent;	\
-}	\
-node(K,V) *minimum_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
-	while (!temp->is_sentinel(temp)) {	\
-		if (temp->is_sentinel(temp->lchild))	\
-			break;	\
-		temp = temp->lchild;	\
-	}	\
-	return temp;	\
-}	\
-node(K,V) *maximum_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
-	while (!node->is_sentinel(temp)) {	\
-		if (temp->is_sentinel(temp->rchild))	\
-			break;	\
-		temp = temp->rchild;	\
-	}	\
-	return temp;	\
-}	\
-node(K,V) *successor_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
-	node(K,V) *p = node->parent;	\
-	if (node->is_sentinel(temp))	\
-		return NULL;	\
-	else if (node->is_sentinel(temp->rchild)) {	\
-		while (p != NULL && temp != p->lchild) {	\
-			temp = p;	\
-			p = p->parent;	\
-		}	\
-		return p;	\
-	}	\
-	else {	\
-		return minimum_##K##_##V(temp->rchild);	\
-	}	\
-	return NULL;	\
-}	\
-	\
-node(K,V) *predecessor_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
-	node(K,V) *parent = node->parent;	\
-	if (node->is_sentinel(temp))	\
-		return NULL;	\
-	else if (node->is_sentinel(temp->lchild)) {	\
-		while (parent != NULL && temp != parent->rchild) {	\
-			temp = parent;	\
-			parent = parent->parent;	\
-		}	\
-		return parent;	\
-	}	\
-	else {	\
-		return maximum_##K##_##V(temp->lchild);	\
-	}	\
-	return NULL;	\
-}	\
-static inline void set_node_ptr_##K##_##V(node(K,V) *node) {	\
-	node->destroy_node = &destroy_node_##K##_##V;	\
-	node->set_sentinels = &set_sentinels_##K##_##V;	\
-	node->is_sentinel = &is_sentinel_##K##_##V;	\
-	node->sibling = &sibling_##K##_##V;	\
-	node->uncle = &uncle_##K##_##V;	\
-	node->grandparent = &grandparent_##K##_##V;	\
-	node->minimum = &minimum_##K##_##V;	\
-	node->maximum = &maximum_##K##_##V;	\
-	node->successor = &successor_##K##_##V;	\
-	node->predecessor = &predecessor_##K##_##V;	\
-}	\
 node(K,V) *new_node_##K##_##V() {	\
 	node(K,V) *node = NULL;	\
+	generic_node *base = NULL;	\
 	\
-	node = (node(K,V)*) calloc(1, sizeof(node(K,V)));	\
+	node = (node(K,V) *) calloc(1, sizeof(node(K,V)));	\
+	fprintf(stderr, "Address of newly created node: %p\n", (void *) node);	\
 	if (node == NULL) {	\
 		return NULL;	\
 	}	\
 		\
-	node->color = RED;	\
-	set_node_ptr_##K##_##V(node);	\
+	base = (generic_node *) node;	\
+	base->color = RED;	\
+	set_node_ptr(base);	\
+	base->kvnodesize = sizeof(node(K,V));	\
 	return node;	\
 }	\
 
@@ -300,7 +299,7 @@ node(K,V) *new_node_##K##_##V() {	\
 define_node(K,V)	\
 typedef struct rb_tree_##K##_##V {	\
 	node(K,V) *root;	\
-	node(K,V) *sentinel;	\
+	generic_node *sentinel;	\
 	struct rb_tree_##K##_##V *(*destroy_rbtree)(struct rb_tree_##K##_##V *);	\
 	rbtree_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
 	void (*inorder_traverse)(struct rb_tree_##K##_##V *, node(K,V) *);	\
@@ -311,8 +310,11 @@ typedef struct rb_tree_##K##_##V {	\
 	\
 rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree) {	\
 	if (tree != NULL) {	\
-		if (tree->root != NULL)	\
-			tree->root->destroy_node(tree->root);	\
+		if (tree->root != NULL) {	\
+		/* up cast in order to treat root like a generic node */	\
+			generic_node *node = (generic_node *) tree->root;	\
+			node->destroy_gnode(node);	\
+		}	\
 		if (tree->sentinel != NULL)	\
 			free(tree->sentinel);	\
 		free(tree);	\
@@ -356,14 +358,16 @@ static inline int compare_bytes(const void *key, const void *nkey, size_t bytes)
 }	\
 /* This is inline because it is also used by delete */	\
 static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
-	node(K,V) *temp = tree->root;	\
+	generic_node *temp = (generic_node *) tree->root;	\
 	K nkey;	\
 	int result = 0;	\
 	while (temp != tree->sentinel) {	\
-		nkey = temp->key;	\
+		node(K,V) *ntemp = (node(K,V) *) temp;	\
+		nkey = ntemp->key;	\
 		result = compare_bytes(&key, &nkey, sizeof(K));	\
 		if (result == 0)	\
-			return temp;	\
+			/* ntemp and temp point to the same locations */	\
+			return ntemp;	\
 		else if (result < 0)	\
 			temp = temp->lchild;	\
 		else	\
@@ -374,38 +378,41 @@ static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 }	\
 	\
 V get_value_##K##_##V(rb_tree(K,V) *tree, K key) {	\
-	K k;	\
+	V val;	\
 	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
 	if (temp != NULL)	\
-		k = temp->value;	\
+		val = temp->value;	\
 	else	\
-		memset(&k, 0, sizeof(K));	\
-	return k;	\
+		memset(&val, 0, sizeof(V));	\
+	return val;	\
 }	\
 	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
-	node(K,V) *node = tree->root;	\
-	node(K,V) *temp = tree->root;	\
+	generic_node *node = (generic_node *) tree->root;	\
+	generic_node *temp = (generic_node *) tree->root;	\
+	node(K,V) *ntemp = NULL;	\
 	K nkey;	\
 	int result = 0;	\
 	if (node == NULL) {	\
-		temp = new_node(K,V);	\
+		temp = (generic_node *) new_node(K,V);	\
 		if (temp == NULL)	\
 			return NULL;	\
-		temp->key = key;	\
-		temp->value = value;	\
+		ntemp = (node(K,V) *) temp;	\
+		ntemp->key = key;	\
+		ntemp->value = value;	\
 		tree->sentinel = temp->set_sentinels(temp, tree->sentinel);	\
-		tree->root = temp;	\
+		tree->root = ntemp;	\
 		return tree->root;	\
 	}	\
 		\
 	while (true) {	\
 		node = temp;	\
-		nkey = node->key;	\
+		ntemp = (node(K,V) *) node;	\
+		nkey = ntemp->key;	\
 		result = compare_bytes(&key, &nkey, sizeof(K));	\
 		if (result == 0) {	\
-			node->value = value;	\
-			return node;	\
+			ntemp->value = value;	\
+			return ntemp;	\
 		}	\
 		else if (result < 0) {	\
 			temp = node->lchild;	\
@@ -418,37 +425,39 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 			break;	\
 		}	\
 	}	\
-	temp = new_node(K,V);	\
+	temp = (generic_node *) new_node(K,V);	\
+	ntemp = (node(K,V) *) temp;	\
 		\
 	if (temp == NULL)	\
 		return NULL;	\
 	temp->set_sentinels(temp, tree->sentinel);	\
-	temp->key = key;	\
-	temp->value = value;	\
+	ntemp->key = key;	\
+	ntemp->value = value;	\
 	temp->color = RED;	\
 	temp->parent = node;	\
 	(result > 0) ? (node->rchild = temp) : (node->lchild = temp);	\
-	return temp;	\
+	return ntemp;	\
 }	\
 	\
 static inline color_t uncle_color_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *u = node->uncle(node);	\
+	generic_node *temp = (generic_node *) node;	\
+	generic_node *u = temp->uncle(temp);	\
 	return (u->color == RED) ? RED : BLACK;	\
 }	\
 static inline void recolor_##K##_##V(node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
-	node(K,V) *p = temp->parent;	\
-	node(K,V) *u = node->uncle(node);	\
-	node(K,V) *g = node->grandparent(node);	\
+	generic_node *temp = (generic_node *) node;	\
+	generic_node *p = temp->parent;	\
+	generic_node *u = temp->uncle(temp);	\
+	generic_node *g = temp->grandparent(temp);	\
 	p->color = BLACK;	\
 	u->color = BLACK;	\
 	g->color = RED;	\
 }	\
 	\
 static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
-	node(K,V) *pivot = temp->rchild;	\
-	node(K,V) *p = temp->parent;	\
+	generic_node *temp = (generic_node *) node;	\
+	generic_node *pivot = (generic_node *) temp->rchild;	\
+	generic_node *p = (generic_node *) temp->parent;	\
 	pivot->parent = p;	\
 	temp->rchild = pivot->lchild;	\
 	pivot->lchild = temp;	\
@@ -461,15 +470,15 @@ static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	
 		(p->rchild == temp) ? (p->rchild = pivot) : (p->lchild = pivot);	\
 	}	\
 	/* Check case where node is root */	\
-	if (tree->root == temp) {	\
-		tree->root = pivot;	\
+	if ((generic_node *) tree->root == temp) {	\
+		tree->root = (node(K,V) *) pivot;	\
 	}	\
 }	\
 	\
 static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
-	node(K,V) *p = temp->parent;	\
-	node(K,V) *pivot = temp->lchild;	\
+	generic_node *temp = (generic_node *) node;	\
+	generic_node *p = (generic_node *) temp->parent;	\
+	generic_node *pivot = (generic_node *) temp->lchild;	\
 	pivot->parent = p;	\
 	temp->lchild = pivot->rchild;	\
 	pivot->rchild = temp;	\
@@ -482,37 +491,37 @@ static inline void rotate_right_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {
 	if (p != NULL) {	\
 		(p->rchild == temp) ? (p->rchild = pivot) : (p->lchild = pivot);	\
 	}	\
-	if (tree->root == temp) {	\
-		tree->root = pivot;	\
+	if ((generic_node *) tree->root == temp) {	\
+		tree->root = (node(K,V) *) pivot;	\
 	}	\
 }	\
 	\
 static inline void rotate_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
-	node(K,V) *p = temp->parent;	\
-	node(K,V) *g = temp->grandparent(temp);	\
+	generic_node *temp = (generic_node *) node;	\
+	generic_node *p = (generic_node *) temp->parent;	\
+	generic_node *g = (generic_node *) temp->grandparent(temp);	\
 	if (temp == p->rchild && p == g->lchild) {	\
-		rotate_left_##K##_##V(tree, p);	\
+		rotate_left_##K##_##V(tree, (node(K,V) *) p);	\
 		temp = temp->lchild;	\
 	}	\
 	else if (temp == p->lchild && p == g->rchild) {	\
-		rotate_right_##K##_##V(tree, p);	\
+		rotate_right_##K##_##V(tree, (node(K,V) *) p);	\
 		temp = temp->rchild;	\
 	}	\
 	p = temp->parent;	\
 	g = temp->grandparent(temp);	\
 	if (temp == p->lchild) {	\
-		rotate_right_##K##_##V(tree, g);	\
+		rotate_right_##K##_##V(tree, (node(K,V) *) g);	\
 	}	\
 	else {	\
-		rotate_left_##K##_##V(tree, g);	\
+		rotate_left_##K##_##V(tree, (node(K,V) *) g);	\
 	}	\
 	p->color = BLACK; 	\
 	g->color = RED; 	\
 }	\
 	\
 static inline void repair_tree_insert_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
+	generic_node *temp = (generic_node *) node;	\
 	while (true) {	\
 		/* The only case that doesn't immediately exit is case 3. */	\
 		/* In this case, temp is root */	\
@@ -525,12 +534,12 @@ static inline void repair_tree_insert_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 			return;	\
 		}	\
 		/* Recolor and then work up the tree doing modifications as necessary */	\
-		else if (temp->uncle(temp) != NULL && uncle_color_##K##_##V(temp) == RED) {	\
-			recolor_##K##_##V(temp);	\
+		else if (temp->uncle(temp) != NULL && uncle_color_##K##_##V((node(K,V) *) temp) == RED) {	\
+			recolor_##K##_##V((node(K,V) *) temp);	\
 			temp = temp->grandparent(temp);	\
 		}	\
-		else if (temp->uncle(temp) != NULL && uncle_color_##K##_##V(temp) == BLACK) {	\
-			rotate_##K##_##V(tree, temp);	\
+		else if (temp->uncle(temp) != NULL && uncle_color_##K##_##V((node(K,V) *) temp) == BLACK) {	\
+			rotate_##K##_##V(tree, (node(K,V) *) temp);	\
 			return;	\
 		}	\
 	}	\
@@ -538,71 +547,92 @@ static inline void repair_tree_insert_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 	\
 rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	/* Insert and then perform tree repairs */	\
-	node(K,V) *temp = basic_insert_##K##_##V(tree, key, value);	\
+	fprintf(stderr, "In insert\n");	\
+	generic_node *temp = (generic_node *) basic_insert_##K##_##V(tree, key, value);	\
 	if (temp == NULL)	\
 		return basic_insert_failed;	\
-	repair_tree_insert_##K##_##V(tree, temp);	\
+	repair_tree_insert_##K##_##V(tree, (node(K,V) *) temp);	\
 	return 0;	\
 }	\
 	\
 /* Switch node and child */	\
-static inline void transplant_##K##_##V(node(K,V) *node, node(K,V) *child) {	\
-	child->parent = node->parent;	\
-	(node == node->parent->lchild) ? (node->parent->lchild = child) : (node->parent->rchild = child);	\
+static inline void transplant_##K##_##V(rb_tree (K,V) *tree, node(K,V) *node, node(K,V) *child) {	\
+	generic_node *ngen = (generic_node *) node;	\
+	generic_node *cgen = (generic_node *) child;	\
+	cgen->parent = ngen->parent;	\
+	(ngen == ngen->parent->lchild) ? (ngen->parent->lchild = cgen) : (ngen->parent->rchild = cgen);	\
 }	\
 	\
 /* basic delete is basic in the sense that it doesn't handle repair	*/	\
 static inline node(K,V) *basic_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
+	static bool successor = true;	\
+	generic_node *temp = (generic_node *) node;	\
+	node(K,V) *ntemp = NULL;	\
+	node(K,V) *nreplace = NULL;	\
 	/* case where both children are not sentinels */	\
 	/* tree does not need its root updated since the node is copied over */	\
 	if (!temp->rchild->is_sentinel(temp->rchild) && !temp->lchild->is_sentinel(temp->lchild)) {	\
-		node(K,V) *successor = temp->rchild->minimum(temp->rchild);	\
-		temp->key = successor->key;	\
-		temp->value = successor->value;	\
-		/* If either child is a non sentinel, then assign to the parent of successor */	\
-		if (!successor->lchild->is_sentinel(successor->lchild))	\
-			transplant_##K##_##V(successor, successor->lchild);	\
-			\
-		else if (!successor->rchild->is_sentinel(successor->rchild))	\
-			transplant_##K##_##V(successor, successor->rchild);	\
-		/* Both of successor's children are null means that successor's */	\
-		/* spot can be sentinel in the parent of successor */	\
-		else if (successor->rchild->is_sentinel(successor->rchild) &&	\
-				successor->lchild->is_sentinel(successor->lchild)) {	\
-			(successor == successor->parent->lchild)	\
-								? (successor->parent->lchild = tree->sentinel)	\
-								: (successor->parent->rchild = tree->sentinel);	\
+		generic_node *replace = NULL;	\
+		ntemp = (node(K,V) *) temp;	\
+		/* alternating between successor and predecessor could help balance tree */	\
+		if (successor) {	\
+			replace = temp->successor(temp);	\
+			successor = false;	\
 		}	\
-		free(successor);	\
+		else {	\
+			replace = temp->predecessor(temp);	\
+			successor = true;	\
+		}	\
+		nreplace = (node(K,V) *) replace;	\
+		ntemp->key = nreplace->key;	\
+		ntemp->value = nreplace->value;	\
+		/* If either child of replace is a non sentinel, then assign to the parent of successor */	\
+		if (!replace->lchild->is_sentinel(replace->lchild))	\
+			transplant_##K##_##V(tree, (node(K,V) *) replace, (node(K,V) *) replace->lchild);	\
+			\
+		else if (!replace->rchild->is_sentinel(replace->rchild))	\
+			transplant_##K##_##V(tree, (node(K,V) *) replace, (node(K,V) *) replace->rchild);	\
+		/* Both of successor's children are sentinels means that successor's */	\
+		/* spot can be sentinel in the parent of successor */	\
+		else if (replace->rchild->is_sentinel(replace->rchild) &&	\
+				replace->lchild->is_sentinel(replace->lchild)) {	\
+			(replace == replace->parent->lchild)	\
+								? (replace->parent->lchild = tree->sentinel)	\
+								: (replace->parent->rchild = tree->sentinel);	\
+		}	\
+		fprintf(stderr, "Neither children are sentinel. Address of node being destroyed: %p\n", nreplace);	\
+		free(nreplace);	\
 		return NULL;	\
 	}	\
 	/* if both children are sentinels, then we can go ahead and just delete the node */	\
 	else if (temp->rchild->is_sentinel(temp->rchild) && temp->lchild->is_sentinel(temp->lchild)) {	\
 		/* If the node in question is root, then set tree root to null */	\
-		if (temp == tree->root)	\
+		if (ntemp == tree->root)	\
 			tree->root = NULL;	\
 		/* The parent of the node being deleted replaces the node with a sentinel */	\
 		else	\
 			(temp == temp->parent->lchild) ? (temp->parent->lchild = tree->sentinel) : (temp->parent->rchild = tree->sentinel);	\
+		fprintf(stderr, "Both children are sentinel. Address of node being destroyed %p\n", node);	\
 		free(node);	\
 		return NULL;	\
 	}	\
 	/* in the final case, one child is non-leaf and the other is a sentinel */	\
 	else {	\
-		node(K,V) *child = (temp->rchild == tree->sentinel) ? temp->lchild : temp->rchild;	\
-		transplant_##K##_##V(temp, child);	\
+		generic_node *child = (temp->rchild == tree->sentinel) ? temp->lchild : temp->rchild;	\
+		transplant_##K##_##V(tree, (node(K,V) *) temp, (node(K,V) *) child);	\
 		/* The case where temp is red is trivial. This only happens when both children are sentinels */	\
 		/* This was already handled */	\
 		if (temp->color == BLACK) {	\
 			if (child->color == BLACK)	\
-				return child;	\
+				return (node(K,V) *) child;	\
 			child->color = BLACK;	\
-			free(node);	\
-			return NULL;	\
 		}	\
+		fprintf(stderr, "One child is a sentinel. Address of node being destroyed %p\n", node);	\
+		free(node);	\
+		return NULL;	\
 	}	\
 	/* The function should never get to this point */	\
+	fprintf(stderr, "Entered impossible case\n");	\
 	return NULL;	\
 }	\
 	\
@@ -611,21 +641,21 @@ static inline node(K,V) *basic_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 /* for every other function, I'm going to do that here as well in order to avoid confusion */	\
 /* This code is based on code from Wikipedia. The algorithm has been altered in multiple ways, however. */	\
 void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
-	node(K,V) *temp = node;	\
+	generic_node *temp = (generic_node *) node;	\
 	/* Using while loop avoid need to use recursion */	\
 	while (true) {	\
 		/* inverse of case 1 */	\
 		if (temp->parent == NULL) {	\
 			return;	\
 		}	\
-		node(K,V) *sibling = temp->sibling(temp);	\
+		generic_node *sibling = temp->sibling(temp);	\
 		/* case two moves to case three */	\
 		if (sibling->color == RED) {	\
 			temp->parent->color = RED;	\
 			sibling->color = BLACK;	\
 			/* rotate right or left depending on which child temp is */	\
-			(temp == temp->parent->rchild) ? rotate_right_##K##_##V(tree, temp->parent) :	\
-					rotate_left_##K##_##V(tree, temp->parent);	\
+			(temp == temp->parent->rchild) ? rotate_right_##K##_##V(tree, (node(K,V) *) temp->parent) :	\
+					rotate_left_##K##_##V(tree, (node(K,V) *) temp->parent);	\
 		}	\
 		sibling = temp->sibling(temp);	\
 		/* case three goes back to case one */	\
@@ -650,13 +680,13 @@ void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 				sibling->lchild->color == RED) {	\
 				sibling->color = RED;	\
 				sibling->lchild->color = BLACK;	\
-				rotate_right_##K##_##V(tree, sibling);	\
+				rotate_right_##K##_##V(tree, (node(K,V) *) sibling);	\
 			}	\
 			else if (temp == temp->parent->rchild && sibling->lchild->color == BLACK &&	\
 					sibling->rchild->color == RED) {	\
 				sibling->color = RED;	\
 				sibling->rchild->color = BLACK;	\
-				rotate_left_##K##_##V(tree, sibling);	\
+				rotate_left_##K##_##V(tree, (node(K,V) *) sibling);	\
 			}	\
 		}	\
 		sibling = temp->sibling(temp);	\
@@ -666,17 +696,18 @@ void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 		/* case six exits on finish */	\
 		if (temp == temp->parent->lchild) {	\
 			sibling->rchild->color = BLACK;	\
-			rotate_left_##K##_##V(tree, temp->parent);	\
+			rotate_left_##K##_##V(tree, (node(K,V) *) temp->parent);	\
 		}	\
 		else {	\
 			sibling->lchild->color = BLACK;	\
-			rotate_right_##K##_##V(tree, temp->parent);	\
+			rotate_right_##K##_##V(tree, (node(K,V) *) temp->parent);	\
 		}	\
 		return;	\
 	}	\
 }	\
 	\
 rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	fprintf(stderr, "In delete\n");	\
 	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
 	node(K,V) *child = NULL;	\
 	if (temp == NULL)	\
@@ -694,21 +725,28 @@ rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 		/* if the deleted node is root, then child replaces node as root */	\
 		if (temp == tree->root)	\
 			tree->root = child;	\
+		fprintf(stderr, "Address of node being deleted %p\n", (void *) temp);	\
 		free(temp);	\
 	}	\
 	\
 	return 0;	\
 }	\
 void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
+	generic_node *temp = (generic_node *) node;	\
 	/* No need to print sentinel */	\
-	if (node->is_sentinel(node))	\
+	if (temp->is_sentinel(temp))	\
 		return;	\
-	inorder_traverse_##K##_##V(tree, node->lchild);	\
-	if (node->parent != NULL)	\
-		fprintf(stderr, "Node is the child of %d\n", node->parent->key);	\
+	inorder_traverse_##K##_##V(tree, (node(K,V) *) temp->lchild);	\
+	if (temp->parent != NULL) {	\
+		node(K,V) *parent = (node(K,V) *) temp->parent;	\
+		fprintf(stderr, "Node is the child of %d\n", parent->key);	\
+	}	\
+	else	\
+		fprintf(stderr, "Node is root\n");	\
+		\
 	fprintf(stderr, "Key: %d, Value: %c\n", node->key, node->value);	\
-	fprintf(stderr, "Color: "); PRINT_COLOR(node); fprintf(stderr, "\n");	\
-	inorder_traverse_##K##_##V(tree, node->rchild);	\
+	fprintf(stderr, "Color: "); PRINT_COLOR(temp); fprintf(stderr, "\n");	\
+	inorder_traverse_##K##_##V(tree, (node(K,V) *) temp->rchild);	\
 }	\
 	\
 void set_rbtree_ptr_##K##_##V(rb_tree(K,V) *tree) {	\
@@ -730,7 +768,6 @@ rb_tree(K,V) *new_rbtree_##K##_##V() {	\
 	set_rbtree_ptr_##K##_##V(tree);	\
 	return tree;	\
 }	\
-
 
 #define node(K,V)	node_##K##_##V
 #define rb_tree(K,V)	rb_tree_##K##_##V

@@ -9,6 +9,6 @@ if [[ -f "expanded.c" ]]; then
 fi
 
 gcc -E -P -C driver_rbtree.c >> output
-sed -in "s://#:#:pg" output
+sed -in "s://#:#:g" output
 clang-format output >> expanded.c
 gcc -o driver expanded.c -ggdb -Wall

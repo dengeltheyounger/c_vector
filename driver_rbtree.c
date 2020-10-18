@@ -7,7 +7,7 @@
 define_rbtree(int, char)
 
 #define get_key()	({ int x = rand() % 100000; x; })
-#define get_value()	({ int x = (rand() % 10) + 48; x; })
+#define get_val()	({ int x = (rand() % 10) + 48; x; })
 
 typedef struct key_holder {
 	int keyset[10];
@@ -72,16 +72,11 @@ int main() {
 	
 	for (int i = 0; i < 10; ++i) {
 		key = get_key();
-		value = get_value();
+		value = get_val();
 		fprintf(stderr, "Insertion %d\nKey: %d, value: %c\n", i, key, value);
 		tree->insert(tree, key, value);
 		holder.keyset[i] = key;
 		
-	}
-	
-	for (size_t i = 0; i < 10; ++i) {
-		fprintf(stderr, "Insertion %ld\nKey: %d\n", i, holder.keyset[i]);
-		tree->insert(tree, holder.keyset[i], value);
 	}
 	
 	fprintf(stderr, "Insert function testing successful\n\n");
@@ -102,8 +97,18 @@ int main() {
 		}
 	}
 	
-	tree->inorder_traverse(tree, tree->root);	\
-	fprintf(stderr, "Value of root node: %d\n\n", tree->root->key);	\
+	tree->inorder_traverse(tree, tree->root);
+	
+	fprintf(stderr, "Delete test successful\n\n");
+	
+	fprintf(stderr, "Testing get_value\n");
+	int valkey = choose_key(&holder);
+	char val = tree->get_value(tree, valkey);
+	
+	fprintf(stderr, "Key chosen: %d. Value %c\n", valkey, val);
+	
+	fprintf(stderr, "Get value test successful\n\n");
+	
 	fprintf(stderr, "Testing destroy_tree function\n");
 	
 	tree = tree->destroy_rbtree(tree);
