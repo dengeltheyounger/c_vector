@@ -1,7 +1,7 @@
-/*#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <stddef.h>*/
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <time.h>
+//#include <stddef.h>
 #include "red_black_tree.h"
 
 define_rbtree(int, char)
@@ -98,10 +98,8 @@ int main() {
 		result = tree->delete_pair(tree, key);
 		if (result != 0) {
 			fprintf(stderr, "Error code: %d\n", result);
+			return 1;
 		}
-		/* tree->inorder_traverse(tree, tree->root);
-		fprintf(stderr, "Value of root node: %d\n", tree->root->key);
-		fprintf(stderr, "\n"); */
 	}
 	
 	tree->inorder_traverse(tree, tree->root);	\
