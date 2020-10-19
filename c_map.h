@@ -1,27 +1,18 @@
 #ifndef C_MAP_H
 #define C_MAP_H
-#include "c_vector.h"
-#include <stdlib.h>
-
-/* The internals of this c_map will be almost entirely replaced. 
- * Instead of using an c_vector of internal maps, a red and black tree
- * will be used to handle key value pairs.
- */
+#include "red_black_tree.h"
+//#include <stdlib.h>
 
 typedef enum map_code {
 	vector_allocate_failure
 } map_code;
 
+/* c_map acts as a high level wrapper for the red and black tree */
+
 #define define_map(K, V)	\
-	typedef struct internal_map_##K##_##V {	\
-		K key;	\
-		V value;	\
-	} internal_map_##K##_##V;	\
-						\
-	define_vector(internal_map_##K##_##V);	\
-									\
+	define_rbtree(K,V)		\
 	typedef struct c_map_##K##_##V {	\
-		c_vector(internal_map_##K##_##V) *_vector;	\
+		rb_tree(K,V) *tree;	\
 		struct c_map_##K##_##V *(*destroy_map)(struct c_map_##K##_##V*);	\
 	} c_map_##K##_##V;	\
 						\
@@ -31,10 +22,8 @@ typedef enum map_code {
 			return NULL;	\
 		}	\
 			\
-		if (map->_vector != NULL) {	\
-			c_vector(internal_map_##K##_##V) *vector = NULL;	\
-			vector = map->_vector;	\
-			vector = vector->destroy_vector(vector);	\
+		if (map->tree != NULL) {	\
+			map->tree = map->tree->destroy_rbtree(map->tree);	\
 		}	\
 		free(map);	\
 		return NULL;	\
@@ -53,9 +42,9 @@ typedef enum map_code {
 			return NULL;	\
 		}					\
 							\
-		map->_vector = new_c_vector(internal_map_##K##_##V, 0);	\
+		map->tree = new_rbtree(K,V);	\
 																\
-		if (map->_vector == NULL) {	\
+		if (map->tree == NULL) {	\
 			free(map);	\
 			return NULL;	\
 		}	\
@@ -64,7 +53,6 @@ typedef enum map_code {
 	}	\
 	
 #define c_map(K,V)	c_map_##K##_##V
-#define internal_map(K,V)	internal_map_##K##_##V
 #define	new_c_map(K, V)	new_map_##K##_##V()
 
 #endif

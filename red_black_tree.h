@@ -95,7 +95,6 @@ typedef struct generic_node {
 	struct generic_node *(*maximum)(struct generic_node*);
 	struct generic_node *(*successor)(struct generic_node*);
 	struct generic_node *(*predecessor)(struct generic_node*);
-	size_t kvnodesize;	// This contains the size of the kv node struct, not the generic node struct
 } generic_node;
 
 static inline bool is_sentinel(generic_node *node) {
@@ -137,7 +136,6 @@ generic_node *destroy_gnode(generic_node *node) {
 	if (node->lchild != NULL)
 		node->lchild = destroy_gnode(node->lchild);
 
-	fprintf(stderr, "Address of node being destroyed %p\n", (void *) node);
 	free(node);
 	return NULL;
 }
@@ -242,7 +240,6 @@ node(K,V) *new_node_##K##_##V() {	\
 	generic_node *base = NULL;	\
 	\
 	node = (node(K,V) *) calloc(1, sizeof(node(K,V)));	\
-	fprintf(stderr, "Address of newly created node: %p\n", (void *) node);	\
 	if (node == NULL) {	\
 		return NULL;	\
 	}	\
@@ -250,49 +247,63 @@ node(K,V) *new_node_##K##_##V() {	\
 	base = (generic_node *) node;	\
 	base->color = RED;	\
 	set_node_ptr(base);	\
-	base->kvnodesize = sizeof(node(K,V));	\
 	return node;	\
 }	\
 
-/* define_rbtree(K,V)
- * INPUT: K -> key data type, V -> value data type
- * OUTPUT: none
- * USAGE: define_rbtree(int, char)
- * NOTES: This is used internally by c_map
+/* This is used for debugging the custom memcmp. */
+static inline void print_bytes(const void *key, size_t bytes) {
+	unsigned char *temp = (unsigned char *) key;
+	for (size_t i = 0; i < bytes; ++i) 
+		printf("%02x", temp[i]);
+	printf("\n");
+}
+
+/* memcmp does not account for endianness. This could mess up the insert function */
+/* This comparison function accounts for endianness. */
+static inline int compare_little_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {
+	for (int i = bytes - 1; i >= 0; --i) {
+		if (key[i] > nkey[i])
+			return 1;
+		else if (key[i] < nkey[i])
+			return -1;
+	}
+	return 0;
+}
+static inline int compare_big_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {
+	for (int i = 0; i < bytes; ++i) {
+		if (key[i] >  nkey[i])
+			return 1;
+		else if (key[i] <  nkey[i])
+			return -1;
+	}
+	return 0;
+}
+static inline int compare_bytes(const void *key, const void *nkey, size_t bytes) {
+	if (ENDIANNESS == LITTLE)
+		return compare_little_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);
+	else
+		return compare_big_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);
+}
+
+/* rb_tree(K,V) is a structure that is used to represent the red and black tree
+ * from a high level. It abstracts away the individual nodes so that c_map
+ * can focus on the high level interactions such as insertion, deletion, and
+ * traversal. 
+ * The sentinel node is a generic_node since the key and value are irrelevant.
+ * It also happens to be the only true generic_node used in the tree. 
+ * All of the functions associated with the rb_tree take a node(K,V) pointer
+ * as a parameter (when there is an operation on nodes with the function). This
+ * is important because the rb_tree will immediately typecast that node to a
+ * generic, which saves from having to do five different indirections at certain points.
+ *  This becomes tricky because there are parts of the code that maintain 
+ * two pointers for the same struct:
+ * One will treat the struct as a node(K,V) struct. I usually prefix this
+ * with an n (ntemp, nreplace) in order to signify that it is a node(K,V)
+ * rather than a generic_node. Where generic_nodes need to be distinguished,
+ * I postfix it with gen.
  * 
- * static inline void rotate_left_##K##_##V(node(K,V) *root, node(K,V) *rchild)
- * INPUT: node(K,V) *root -> root node of subtree, node(K,V) *rchild -> right child of subtree
- * OUTPUT: none
- * USAGE: rotate_left_##K##_##V(root, root->rchild)
- * NOTES: This will do a left rotate of tree. rchild becomes root
- * root becomes lchild, and the original lchild of rchild becomes the
- * rchild of root
- * 
- * static inline void rotate_right_##K##_##V(node(K,V) *root, node(K,V) *lchild)
- * INPUT: node(K,V) *root -> root node of subtree, node(K,V) *lchild -> left child of subtree
- * OUTPUT none
- * USAGE: rotate_right_##K##_##V(root, lchild);
- * NOTES: This  will do a right rotate of tree. lchild becomes root
- * root becomes rchild, and the original rchild of lchild becomes the
- * lchild of root
- * 
- * rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree)
- * INPUT: rb_tree(K,V) *tree -> red black tree struct of given key and value data types
- * OUTPUT: rb_tree(K,V) * -> pointer to red black tree struct
- * USAGE: tree = tree->destroy_rbtree(tree);
- * NOTES: This will free the node. The entire tree will be freed as well
- * 
- * void set_rbtree_ptr_##K##_##V(rb_tree(K,V) *tree)
- * INPUT: rb_tree(K,V) *tree -> pointer to red black tree struct
- * OUTPUT: none
- * USAGE: set_rbtree_ptr_##K##_##V(tree)
- * NOTES: This is used internally by rbtree to set function pointers
- * 
- * rb_tree(K,V) *new_rbtree_##K##_##V()
- * INPUT: none
- * OUTPUT: rb_tree(K,V) * -> pointer to red black tree struct
- * USAGE: rb_tree(int, char) *tree = new_tree(int, char);
- * NOTES: This will create a root node with two sentinel children
+ * All of this can be optimized later for readability. For now, the focus
+ * will be on writing the map, however. 
  */
  
 #define define_rbtree(K,V)	\
@@ -322,40 +333,6 @@ rb_tree(K,V) *destroy_rbtree_##K##_##V(rb_tree(K,V) *tree) {	\
 	return NULL;	\
 }	\
 	\
-static inline void print_bytes(const void *key, size_t bytes) {	\
-	unsigned char *temp = (unsigned char *) key;	\
-	for (size_t i = 0; i < bytes; ++i) 	\
-		printf("%02x", temp[i]);	\
-	\
-	printf("\n");	\
-}	\
-/* memcmp does not account for endianness. This could mess up the insert function */	\
-/* This comparison function accounts for endianness. */	\
-static inline int compare_little_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {	\
-	for (int i = bytes - 1; i >= 0; --i) {	\
-		if (key[i] > nkey[i]) {	\
-			return 1;	\
-		}	\
-		else if (key[i] < nkey[i])	\
-			return -1;	\
-	}	\
-	return 0;	\
-}	\
-static inline int compare_big_endian(const unsigned char *key, const unsigned char *nkey, size_t bytes) {	\
-	for (int i = 0; i < bytes; ++i) {	\
-		if (key[i] >  nkey[i])	\
-			return 1;	\
-		else if (key[i] <  nkey[i])	\
-			return -1;	\
-	}	\
-	return 0;	\
-}	\
-static inline int compare_bytes(const void *key, const void *nkey, size_t bytes) {	\
-	if (ENDIANNESS == LITTLE)	\
-		return compare_little_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);	\
-	else	\
-		return compare_big_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);	\
-}	\
 /* This is inline because it is also used by delete */	\
 static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	generic_node *temp = (generic_node *) tree->root;	\
@@ -547,7 +524,6 @@ static inline void repair_tree_insert_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 	\
 rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	/* Insert and then perform tree repairs */	\
-	fprintf(stderr, "In insert\n");	\
 	generic_node *temp = (generic_node *) basic_insert_##K##_##V(tree, key, value);	\
 	if (temp == NULL)	\
 		return basic_insert_failed;	\
@@ -600,7 +576,6 @@ static inline node(K,V) *basic_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 								? (replace->parent->lchild = tree->sentinel)	\
 								: (replace->parent->rchild = tree->sentinel);	\
 		}	\
-		fprintf(stderr, "Neither children are sentinel. Address of node being destroyed: %p\n", nreplace);	\
 		free(nreplace);	\
 		return NULL;	\
 	}	\
@@ -612,7 +587,6 @@ static inline node(K,V) *basic_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 		/* The parent of the node being deleted replaces the node with a sentinel */	\
 		else	\
 			(temp == temp->parent->lchild) ? (temp->parent->lchild = tree->sentinel) : (temp->parent->rchild = tree->sentinel);	\
-		fprintf(stderr, "Both children are sentinel. Address of node being destroyed %p\n", node);	\
 		free(node);	\
 		return NULL;	\
 	}	\
@@ -627,12 +601,10 @@ static inline node(K,V) *basic_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 				return (node(K,V) *) child;	\
 			child->color = BLACK;	\
 		}	\
-		fprintf(stderr, "One child is a sentinel. Address of node being destroyed %p\n", node);	\
 		free(node);	\
 		return NULL;	\
 	}	\
 	/* The function should never get to this point */	\
-	fprintf(stderr, "Entered impossible case\n");	\
 	return NULL;	\
 }	\
 	\
@@ -725,7 +697,6 @@ rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 		/* if the deleted node is root, then child replaces node as root */	\
 		if (temp == tree->root)	\
 			tree->root = child;	\
-		fprintf(stderr, "Address of node being deleted %p\n", (void *) temp);	\
 		free(temp);	\
 	}	\
 	\
