@@ -285,6 +285,28 @@ static inline int compare_bytes(const void *key, const void *nkey, size_t bytes)
 		return compare_big_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);
 }
 
+/* These functions do not require a tree as the first argument. Moreover, 
+ * they also don't depend on the key and value members of node(K,V).
+ * For that reason, I have moved them outside of define_rbtree in order to
+ * maximize code reuse.
+ */
+ 
+static inline color_t uncle_color(generic_node *node) {
+	generic_node *temp = node;
+	generic_node *u = temp->uncle(temp);
+	return (u->color == RED) ? RED : BLACK;
+}
+
+static inline void recolor(generic_node *node) {
+	generic_node *temp = node;
+	generic_node *p = temp->parent;
+	generic_node *u = temp->uncle(temp);
+	generic_node *g = temp->grandparent(temp);
+	p->color = BLACK;
+	u->color = BLACK;
+	g->color = RED;
+}
+
 /* rb_tree(K,V) is a structure that is used to represent the red and black tree
  * from a high level. It abstracts away the individual nodes so that c_map
  * can focus on the high level interactions such as insertion, deletion, and
@@ -416,21 +438,6 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	return ntemp;	\
 }	\
 	\
-static inline color_t uncle_color_##K##_##V(node(K,V) *node) {	\
-	generic_node *temp = (generic_node *) node;	\
-	generic_node *u = temp->uncle(temp);	\
-	return (u->color == RED) ? RED : BLACK;	\
-}	\
-static inline void recolor_##K##_##V(node(K,V) *node) {	\
-	generic_node *temp = (generic_node *) node;	\
-	generic_node *p = temp->parent;	\
-	generic_node *u = temp->uncle(temp);	\
-	generic_node *g = temp->grandparent(temp);	\
-	p->color = BLACK;	\
-	u->color = BLACK;	\
-	g->color = RED;	\
-}	\
-	\
 static inline void rotate_left_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 	generic_node *temp = (generic_node *) node;	\
 	generic_node *pivot = (generic_node *) temp->rchild;	\
@@ -511,11 +518,11 @@ static inline void repair_tree_insert_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 			return;	\
 		}	\
 		/* Recolor and then work up the tree doing modifications as necessary */	\
-		else if (temp->uncle(temp) != NULL && uncle_color_##K##_##V((node(K,V) *) temp) == RED) {	\
-			recolor_##K##_##V((node(K,V) *) temp);	\
+		else if (temp->uncle(temp) != NULL && uncle_color(temp) == RED) {	\
+			recolor(temp);	\
 			temp = temp->grandparent(temp);	\
 		}	\
-		else if (temp->uncle(temp) != NULL && uncle_color_##K##_##V((node(K,V) *) temp) == BLACK) {	\
+		else if (temp->uncle(temp) != NULL && uncle_color(temp) == BLACK) {	\
 			rotate_##K##_##V(tree, (node(K,V) *) temp);	\
 			return;	\
 		}	\
@@ -679,7 +686,6 @@ void repair_tree_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node) {	\
 }	\
 	\
 rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
-	fprintf(stderr, "In delete\n");	\
 	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
 	node(K,V) *child = NULL;	\
 	if (temp == NULL)	\
