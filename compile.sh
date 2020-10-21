@@ -1,11 +1,11 @@
 #!/bin/bash
 
 if [[ -f "rboutput" ]]; then
-	rm rboutput
+	rm rboutput*
 fi
 
 if [[ -f "coutput" ]]; then
-	rm coutput
+	rm coutput*
 fi
 
 if [[ -f "rbexpand.c" ]]; then

@@ -2,6 +2,7 @@
 //#include <stdlib.h>
 //#include <time.h>
 //#include <stddef.h>
+//#include <stdbool.h>
 #include "red_black_tree.h"
 
 define_rbtree(int, char)
@@ -48,7 +49,6 @@ int main() {
 	int key;
 	char value;
 	rbtree_code result;
-	
 	key_holder holder;
 	holder.keynum = 10;
 	holder.nextindex = 0;
@@ -75,6 +75,10 @@ int main() {
 		value = get_val();
 		fprintf(stderr, "Insertion %d\nKey: %d, value: %c\n", i, key, value);
 		tree->insert(tree, key, value);
+		if (!tree->is_key(tree, key)) {
+			fprintf(stderr, "Failed to insert!\n");
+			return 1;
+		}
 		holder.keyset[i] = key;
 		
 	}

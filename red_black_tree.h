@@ -338,6 +338,7 @@ typedef struct rb_tree_##K##_##V {	\
 	void (*inorder_traverse)(struct rb_tree_##K##_##V *, node(K,V) *);	\
 	V (*get_value)(struct rb_tree_##K##_##V *, K);	\
 	rbtree_code (*delete_pair)(struct rb_tree_##K##_##V *, K);	\
+	bool (*is_key)(struct rb_tree_##K##_##V *, K);	\
 } rb_tree_##K##_##V;	\
 	\
 	\
@@ -376,6 +377,9 @@ static inline node(K,V) *basic_search_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	return NULL;	\
 }	\
 	\
+bool is_key_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	return (basic_search_##K##_##V(tree, key) != NULL);	\
+}	\
 V get_value_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	V val;	\
 	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
@@ -732,6 +736,7 @@ void set_rbtree_ptr_##K##_##V(rb_tree(K,V) *tree) {	\
 	tree->inorder_traverse = &inorder_traverse_##K##_##V;	\
 	tree->get_value = &get_value_##K##_##V;	\
 	tree->delete_pair = &delete_##K##_##V;	\
+	tree->is_key = &is_key_##K##_##V;	\
 }	\
 	\
 rb_tree(K,V) *new_rbtree_##K##_##V() {	\
