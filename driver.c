@@ -1,4 +1,9 @@
+#ifdef __GNUG__
+#include <cstdio>
+#include <vector>
+#else
 #include <stdio.h>
+#endif
 #include "c_vector.h"
 
 // driver code for the c_vector
@@ -14,15 +19,20 @@ int main(int argc, char *argv[]) {
 	size_t currsize = 0;
 	size_t maxsize = 0;
 	size_t iter = 0;
-	array_code code = 0;
+	array_code code = success;
 	
+	printf("Testing int vector creation\n");
 	vector = new_c_vector(int, 0);
 	
 	currindex = vector->get_current_index(vector);
 	currsize = vector->get_current_size(vector);
 	maxsize = vector->get_max_size(vector);
 	
+	printf("int vector creation successful\n");
+	
 	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+	
+	printf("Testing add_top function\n");
 	
 	code = vector->add_top(vector, 1);
 	
@@ -47,6 +57,10 @@ int main(int argc, char *argv[]) {
 	maxsize = vector->get_max_size(vector);
 	
 	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+	
+	printf("add_top function test successful\n");
+	
+	printf("Testing resize function\n");
 
 	code = vector->resize(vector, 24);
 
@@ -84,6 +98,10 @@ int main(int argc, char *argv[]) {
 	maxsize = vector->get_max_size(vector);
 
 	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+	
+	printf("Resize function test successful\n");
+	
+	printf("Testing add_top after use of resize function\n");
 
 	code = vector->add_top(vector, 3);
 
@@ -97,6 +115,10 @@ int main(int argc, char *argv[]) {
 	
 	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
 	
+	printf("add_top function test after resize function use successful\n");
+	
+	printf("Testing shrink function\n");
+	
 	code = vector->shrink(vector);
 	
 	if (code != 0) {
@@ -121,21 +143,17 @@ int main(int argc, char *argv[]) {
 	
 	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
 	
-	code = vector->shrink(vector);
+	printf("shrink function test successful\n");
 	
-	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
-	}
-	
-	currindex = vector->get_current_index(vector);
-	currsize = vector->get_current_size(vector);
-	maxsize = vector->get_max_size(vector);
-	
-	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
+	printf("Iterating vector\n");
 	
 	iterate_vector(vector, iter) {
 		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
 	}
+	
+	printf("Iteration successful\n");
+	
+	printf("Testing remove_top function\n");
 	
 	vector->remove_top(vector);
 	iter = 0;
@@ -143,18 +161,33 @@ int main(int argc, char *argv[]) {
 	iterate_vector(vector, iter) {
 		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
 	}
+	
+	printf("remove_top test successful\n");
 
 	iter = 0;
+	
+	printf("Testing insert function\n");
 	vector->insert(vector, 1,  500);
 
 	iterate_vector(vector, iter) {
 		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
 	}
 	
+	printf("insert function test successful\n");
+		
 	size_t vsize = sizeof(c_vector(int));
 
 	printf("Size of vector is %ld bytes.\n", vsize);
 	
+	printf("Testing destroy_vector function\n");
 	vector->destroy_vector(vector);
+	printf("destroy vector_function test successful\n");
+
+#ifdef __GNUG__
+	printf("size of cpp vector %ld: \n", sizeof(std::vector<int>));
 	return 0;
 }
+#else
+	return 0;
+}
+#endif

@@ -1,9 +1,20 @@
 #ifndef C_VECTOR_H
 #define C_VECTOR_H
+#ifdef	__GNUC__
+#ifndef	__cplusplus
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#else
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+#include <cstddef>
+#include <cstring>
+#endif
+#endif
+
 
 // This can be used to get type information for a c_vector
 #define type_name(DATA_TYPE)	#DATA_TYPE
@@ -15,7 +26,8 @@
  
  typedef enum array_code {
 	 // This allows 0 as a success code
-	 realloc_failed = 1,
+	 success,
+	 realloc_failed,
 	 memset_failed,
 	 invalid_index
 } array_code; 
@@ -166,14 +178,14 @@
 		DATA* temp = NULL;	\
 		DATA* memtemp = NULL;	\
 		if ((vector->curr_index+1) > vector->current_size) {	\
-			temp = (DATA*) realloc(vector->data, sizeof(DATA)*2*vector->max_size);	\
+			temp = (DATA*) realloc((void *) vector->data, sizeof(DATA)*2*vector->max_size);	\
 				\
 			if (temp == NULL) {	\
 				return realloc_failed;	\
 			}	\
 			vector->data = temp;	\
 			size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
-			memtemp = (DATA*) memset(&(vector->data[index]), 0, sizeof(DATA)*vector->max_size);	\
+			memtemp = (DATA*) memset((void *) &(vector->data[index]), 0, sizeof(DATA)*vector->max_size);	\
 			if (memtemp == NULL) {	\
 				return memset_failed;	\
 			}	\
@@ -182,29 +194,28 @@
 			vector->current_size = vector->max_size;	\
 			vector->max_size *= 2;	\
 			++(vector->curr_index);	\
-			return 0;	\
+			return success;	\
 		}	\
 			\
 		vector->data[vector->curr_index] = value;	\
 		++vector->curr_index;	\
-		return 0;	\
+		return success;	\
 	}	\
 		\
 	array_code remove_top_##DATA(c_vector_##DATA *vector) {	\
 		DATA *temp = NULL;	\
 		if (vector->curr_index == 0) {	\
-			return 0;	\
+			return success;	\
 		}	\
 		size_t index = vector->curr_index - 1;	\
-		temp = memset(&vector->data[index], 0, sizeof(DATA));	\
+		temp = (DATA *) memset((void *) &vector->data[index], 0, sizeof(DATA));	\
 			\
 		if (temp == NULL) {	\
 			return memset_failed;	\
 		}	\
 			\
-		vector->data = temp;	\
 		--(vector->curr_index);	\
-		return 0;	\
+		return success;	\
 	}	\
 	size_t get_current_index_##DATA(c_vector_##DATA *vector) {	\
 		return vector->curr_index;	\
@@ -230,7 +241,7 @@
 			vector->curr_index = index;	\
 		}	\
 			\
-		return 0;	\
+		return success;	\
 		\
 	}	\
 		\
@@ -247,16 +258,16 @@
 		DATA *temp = NULL;	\
 		DATA *memtemp = NULL;	\
 		if (newsize == vector->current_size) {	\
-			return 0;	\
+			return success;	\
 		}	\
 		else if (newsize > vector->current_size && newsize < vector->max_size) {	\
 			vector->current_size = newsize;	\
-			return 0;	\
+			return success;	\
 		}	\
 			\
 		else if (newsize < vector->current_size) {	\
 			size_t index = elementnum - 1;	\
-			temp = (DATA*) memset(&(vector->data[index]), 0, (vector->max_size - newsize));	\
+			temp = (DATA*) memset((void *) &(vector->data[index]), 0, (vector->max_size - newsize));	\
 			if (temp == NULL) {	\
 				return memset_failed;	\
 			}	\
@@ -265,32 +276,32 @@
 				vector->curr_index = index;	\
 			}	\
 				\
-			return 0;	\
+			return success;	\
 		}	\
 			\
-		temp = (DATA*) realloc(vector->data, 2*newsize);	\
+		temp = (DATA*) realloc((void *) vector->data, 2*newsize);	\
 		if (temp == NULL) {	\
 			return realloc_failed;	\
 		}	\
 		vector->data = temp;	\
 		temp = NULL;	\
 		size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
-		memtemp = (DATA*) memset(&(vector->data[index]), 0, ((2*newsize) - vector->max_size));	\
+		memtemp = (DATA*) memset((void *) &(vector->data[index]), 0, ((2*newsize) - vector->max_size));	\
 		if (memtemp == NULL) {	\
 			return memset_failed;	\
 		}	\
 		vector->current_size = newsize;	\
 		vector->max_size = 2*newsize;	\
-		return 0;	\
+		return success;	\
 	}	\
 		\
 	array_code shrink_##DATA(c_vector_##DATA* vector) {	\
 		if (vector->max_size == vector->current_size) {	\
-			return 0;	\
+			return success;	\
 		}	\
 			\
 		DATA *temp = NULL;	\
-		temp = realloc(vector->data, vector->current_size);	\
+		temp = (DATA *) realloc((void *) vector->data, vector->current_size);	\
 			\
 		if (temp == NULL) {	\
 			return realloc_failed;	\
@@ -298,7 +309,7 @@
 			\
 		vector->max_size = vector->current_size;	\
 		vector->data = temp;	\
-		return 0;	\
+		return success;	\
 	}	\
 		\
 	static inline void set_vector_ptr_##DATA(c_vector_##DATA* vector) {	\
