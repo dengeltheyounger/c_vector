@@ -1,7 +1,7 @@
 #ifndef C_MAP_H
 #define C_MAP_H
 #include "red_black_tree.h"
-//#include <stdlib.h>
+#include <stdlib.h>
 
 // Eventually all codes will be consolidated under a single error_code enum
 typedef enum map_code {

@@ -1,4 +1,4 @@
-//#include <stdio.h>
+#include <stdio.h>
 #include "c_map.h"
 
 define_map(int, char)

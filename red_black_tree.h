@@ -1,12 +1,11 @@
 #ifndef RED_BLACK_TREE
 #define RED_BLACK_TREE
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <stddef.h>
-//#include <string.h>
-//#include <stdbool.h>
-//#include <stdint.h>
-#include "stream_handler.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 #define PRINT_COLOR(NODE)	fprintf(stderr, "%s", NODE->color == RED ? "RED" : "BLACK")
 
