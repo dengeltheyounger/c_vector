@@ -14,6 +14,7 @@
 #include <cstring>
 #endif
 #endif
+#include "iterator.h"
 
 
 // This can be used to get type information for a c_vector
@@ -384,5 +385,32 @@
  * data type and number of elements.
  */
 #define new_c_vector(DATA, NUMBER) new_vector_##DATA((size_t) NUMBER)
-	
+
+#define define_vector_iterator(VECTOR, TYPE)	\
+typedef struct vector_iterator_##VECTOR {	\
+	generic_iterator geniter;	\
+	TYPE (*current)(struct vector_iterator_##VECTOR *);	\
+	vector_iterator_##VECTOR *(*destroy_iterator)(struct vector_iterator_##VECTOR *);	\
+	VECTOR *vector;	\
+	TYPE *current_value;	\
+} vector_iterator_##VECTOR;	\
+	\
+	vector_iterator(TYPE) new_vector_iterator_##VECTOR(VECTOR *vector) {	\
+		/* vector iterator stores pointer to vector and the current */	\
+		/* data pointed to */	\
+		if (vector == NULL) {	\
+			return NULL;	\
+		}	\
+			\
+		vector_iterator(TYPE) *vi = (vector_iterator(TYPE) *) calloc(1, sizeof(vector_iterator(TYPE)));	\
+		if (vi = NULL) {	\
+			return NULL;	\
+		}	\
+		vi->vector = vector;
+		vi->current_value = vector->data;	\
+		return vi;	\
+	}	\
+
+#define vector_iterator(TYPE)	vector_iterator_##c_vector_##TYPE	
+#define new_vector_iterator(VECTOR, vector)	new_vector_iterator_##VECTOR(vector)
 #endif
