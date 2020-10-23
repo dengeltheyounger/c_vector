@@ -6,7 +6,6 @@
 //#include <string.h>
 //#include <stdbool.h>
 //#include <stdint.h>
-#include "stream_handler.h"
 
 #define PRINT_COLOR(NODE)	fprintf(stderr, "%s", NODE->color == RED ? "RED" : "BLACK")
 
