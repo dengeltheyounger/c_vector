@@ -1,3 +1,4 @@
+// All of this is to c_vector c++ compatible
 #ifndef C_VECTOR_H
 #define C_VECTOR_H
 #ifdef	__GNUC__
@@ -6,6 +7,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdbool.h>
 #else
 #include <cstring>
 #include <cstdio>
@@ -32,14 +34,6 @@
 	 memset_failed,
 	 invalid_index
 } array_code; 
-
-/* iterate_vector(VECTOR, ITER)
- * INPUT: VECTOR -> c_vector struct pointer, ITER -> size_t variable that points to starting index
- * OUTPUT: None
- * USAGE: iterate_vector(VECTOR, ITER) { code for iteration here... }
- * NOTES: This can be used for many different iteration operations. Just add brackets.
- */
-#define iterate_vector(VECTOR, ITER)	for (ITER; ITER < VECTOR->curr_index; ++ITER)
 
 /* code_to_string(CODE)
  * INPUT: CODE -> array_code value
@@ -150,7 +144,7 @@
 		size_t current_size; \
 		size_t curr_index; \
 		DATA *data; \
-		char *data_type; \
+		const char *data_type; \
 		struct c_vector_##DATA *(*destroy_vector)(struct c_vector_##DATA*);	\
 		array_code (*add_top)(struct c_vector_##DATA*, DATA value);	\
 		array_code (*remove_top)(struct c_vector_##DATA*);	\
@@ -362,7 +356,8 @@
 		vector->data_type = type_name(DATA);	\
 		set_vector_ptr_##DATA(vector);	\
 		return vector;	\
-	}	
+	}	\
+	define_vector_iterator(DATA)	\
 	
 /* c_vector(DATA)
  * INPUT: DATA -> the data type desired for the array
@@ -386,31 +381,79 @@
  */
 #define new_c_vector(DATA, NUMBER) new_vector_##DATA((size_t) NUMBER)
 
-#define define_vector_iterator(VECTOR, TYPE)	\
-typedef struct vector_iterator_##VECTOR {	\
+#define define_vector_iterator(TYPE)	\
+typedef struct vector_iterator_##c_vector_##TYPE {	\
 	generic_iterator geniter;	\
-	TYPE (*current)(struct vector_iterator_##VECTOR *);	\
-	vector_iterator_##VECTOR *(*destroy_iterator)(struct vector_iterator_##VECTOR *);	\
-	VECTOR *vector;	\
-	TYPE *current_value;	\
-} vector_iterator_##VECTOR;	\
+	TYPE (*current)(struct vector_iterator_##c_vector_##TYPE *);	\
+	c_vector_##TYPE *vector;	\
+	size_t current_index;	\
+} vector_iterator_##c_vector_##TYPE;	\
 	\
-	vector_iterator(TYPE) new_vector_iterator_##VECTOR(VECTOR *vector) {	\
+	generic_iterator *destroy_vector_iterator_##c_vector_##TYPE(generic_iterator *iter) {	\
+		if (iter == NULL) {	\
+			return NULL;	\
+		}	\
+		free(iter);	\
+		return NULL;	\
+	}	\
+		\
+	void first_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
+		iter->current_index = 0;	\
+	}	\
+		\
+	void next_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
+		++(iter->current_index);	\
+	}	\
+		\
+	void last_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
+		iter->current_index = iter->vector->curr_index;	\
+	}	\
+		\
+	bool end_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
+		if (iter->current_index >= iter->vector->curr_index) {	\
+			iter->current_index = 0;	\
+			return true;	\
+		}	\
+		return false;	\
+	}	\
+		\
+	TYPE current_vector_iterator_##c_vector_##TYPE(vector_iterator(TYPE) *iter) {	\
+		return iter->vector->data[iter->current_index];	\
+	}	\
+		\
+	void set_vector_iterator_ptr_##c_vector_##TYPE(vector_iterator(TYPE) *iter) {	\
+		generic_iterator *generic = (generic_iterator *) iter;	\
+		generic->first = &first_vector_iterator_##c_vector_##TYPE;	\
+		generic->next = &next_vector_iterator_##c_vector_##TYPE;	\
+		generic->last = &last_vector_iterator_##c_vector_##TYPE;	\
+		generic->end = &end_vector_iterator_##c_vector_##TYPE;	\
+		generic->destroy_iterator = &destroy_vector_iterator_##c_vector_##TYPE;	\
+		iter->current = &current_vector_iterator_##c_vector_##TYPE;	\
+	}	\
+	/* The constructor is not generalized in order to abstract away the setting */	\
+	/* of the functoin pointer. I'd like to find a way around that, though. */	\
+	generic_iterator *new_vector_iterator_##c_vector_##TYPE(c_vector_##TYPE *vector) {	\
 		/* vector iterator stores pointer to vector and the current */	\
 		/* data pointed to */	\
 		if (vector == NULL) {	\
 			return NULL;	\
 		}	\
 			\
-		vector_iterator(TYPE) *vi = (vector_iterator(TYPE) *) calloc(1, sizeof(vector_iterator(TYPE)));	\
-		if (vi = NULL) {	\
+		generic_iterator *vi = (generic_iterator *) calloc(1, sizeof(vector_iterator(TYPE)));	\
+		if (vi == NULL) {	\
 			return NULL;	\
 		}	\
-		vi->vector = vector;
-		vi->current_value = vector->data;	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) vi;	\
+		iter->vector = vector;	\
+		set_vector_iterator_ptr_##c_vector_##TYPE((vector_iterator(TYPE) *) vi);	\
 		return vi;	\
 	}	\
 
+/* vector_iterator_##c_vector_##TYPE is the same as vector_iterator_##VECTOR */
 #define vector_iterator(TYPE)	vector_iterator_##c_vector_##TYPE	
-#define new_vector_iterator(VECTOR, vector)	new_vector_iterator_##VECTOR(vector)
+#define new_vector_iterator(TYPE, vector)	new_vector_iterator_##c_vector_##TYPE(vector)
 #endif

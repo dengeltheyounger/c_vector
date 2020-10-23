@@ -1,6 +1,5 @@
 #ifdef __GNUG__
 #include <cstdio>
-#include <vector>
 #else
 #include <stdio.h>
 #endif
@@ -18,11 +17,13 @@ int main(int argc, char *argv[]) {
 	size_t currindex = 0;
 	size_t currsize = 0;
 	size_t maxsize = 0;
-	size_t iter = 0;
 	array_code code = success;
 	
 	printf("Testing int vector creation\n");
 	vector = new_c_vector(int, 0);
+	// Type casting is needed because new_vector_iterator returns a generic_iterator
+	vector_iterator(int) *iter = (vector_iterator(int) *) new_vector_iterator(int, vector);
+	generic_iterator *giter = (generic_iterator *) iter;
 	
 	currindex = vector->get_current_index(vector);
 	currsize = vector->get_current_size(vector);
@@ -144,50 +145,38 @@ int main(int argc, char *argv[]) {
 	printf("current index: %ld, current size: %ld, max size: %ld\n", currindex, currsize, maxsize);
 	
 	printf("shrink function test successful\n");
-	
-	printf("Iterating vector\n");
-	
-	iterate_vector(vector, iter) {
-		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
-	}
+		
+	for (giter; !giter->end(giter); giter->next(giter))
+		printf("Value at next index is %d\n", iter->current(iter));
 	
 	printf("Iteration successful\n");
 	
 	printf("Testing remove_top function\n");
 	
 	vector->remove_top(vector);
-	iter = 0;
 	
-	iterate_vector(vector, iter) {
-		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
-	}
+	for (giter; !giter->end(giter); giter->next(giter))
+		printf("Value at next index is %d\n", iter->current(iter));
 	
 	printf("remove_top test successful\n");
-
-	iter = 0;
 	
 	printf("Testing insert function\n");
 	vector->insert(vector, 1,  500);
 
-	iterate_vector(vector, iter) {
-		printf("Value at index %ld: %d\n", iter, vector->value_at(vector, iter));
-	}
+	for (giter; !giter->end(giter); giter->next(giter))
+		printf("Value at next index is %d\n", iter->current(iter));
 	
 	printf("insert function test successful\n");
 		
 	size_t vsize = sizeof(c_vector(int));
+	size_t isize = sizeof(vector_iterator(int));
 
 	printf("Size of vector is %ld bytes.\n", vsize);
+	printf("Size of vector_iterator is %ld bytes.\n", isize);
 	
 	printf("Testing destroy_vector function\n");
 	vector->destroy_vector(vector);
+	giter = giter->destroy_iterator(giter);
 	printf("destroy vector_function test successful\n");
-
-#ifdef __GNUG__
-	printf("size of cpp vector %ld: \n", sizeof(std::vector<int>));
 	return 0;
 }
-#else
-	return 0;
-}
-#endif
