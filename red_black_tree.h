@@ -14,12 +14,12 @@
  * is used that accounts for endianness
  */
 
-inline bool is_little() {
+static inline bool is_little() {
 	int n = 1;
 	if (*(char *) &n == 1)
 		return true;
 	return false;
-};
+}
 
 typedef struct error_info {
 	char *functname;
