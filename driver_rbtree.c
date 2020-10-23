@@ -52,9 +52,7 @@ int main() {
 	key_holder holder;
 	holder.keynum = 10;
 	holder.nextindex = 0;
-	
-	printf("Endianness of machine: %s\n", (ENDIANNESS == BIG) ? "BIG" : "LITTLE");
-	
+		
 	rb_tree(int, char) *tree = NULL;
 	
 	fprintf(stderr, "Testing new_rbtree function\n");

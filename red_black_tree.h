@@ -14,15 +14,12 @@
  * is used that accounts for endianness
  */
 
-static uint32_t endiantest = 0xdeadbeef;
-typedef enum endianness { LITTLE, BIG } endianness;
-#define ENDIANNESS	({ endianness e = 0;	\
-						if (* (const char *) &endiantest == 0xef)	\
-							e = LITTLE;	\
-						else if (* (const char *) &endiantest == 0xde)	\
-							e = BIG;	\
-						e;	\
-					})
+static inline bool is_little() {
+	int n = 1;
+	if (*(char *) &n == 1)
+		return true;
+	return false;
+}
 
 typedef struct error_info {
 	char *functname;
@@ -279,7 +276,7 @@ static inline int compare_big_endian(const unsigned char *key, const unsigned ch
 	return 0;
 }
 static inline int compare_bytes(const void *key, const void *nkey, size_t bytes) {
-	if (ENDIANNESS == LITTLE)
+	if (is_little())
 		return compare_little_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);
 	else
 		return compare_big_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);
