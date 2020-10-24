@@ -9,7 +9,9 @@
 
 // Eventually all codes will be consolidated under a single error_code enum
 typedef enum map_code {
-	insert_failure = 1,
+	// since success has already been used, I will use no_error for now
+	no_error,
+	insert_failure,
 	invalid_key
 } map_code;
 
@@ -40,16 +42,16 @@ typedef enum map_code {
 		\
 	map_code insert_map_##K##_##V(c_map(K,V) *map, K key, V value) {	\
 		rbtree_code result = map->tree->insert(map->tree, key, value);	\
-		if (result != 0)	\
+		if (result != success)	\
 			return insert_failure;	\
-		return 0;	\
+		return no_error;	\
 	}	\
 		\
 	map_code delete_pair_map_##K##_##V(c_map(K,V) *map, K key) {	\
 		rbtree_code result = map->tree->delete_pair(map->tree, key);	\
-		if (result != 0)	\
+		if (result != success)	\
 			return invalid_key;	\
-		return 0;	\
+		return no_error;	\
 	}	\
 		\
 	V get_value_map_##K##_##V(c_map(K,V) *map, K key) {	\
