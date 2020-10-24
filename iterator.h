@@ -13,4 +13,12 @@ typedef struct generic_iterator {
 	struct generic_iterator *(*destroy_iterator)(struct generic_iterator*);
 } generic_iterator;
 
+generic_iterator *destroy_iterator(generic_iterator *iter) {
+	if (iter == NULL) {
+		return NULL;
+	}
+	free(iter);
+	return NULL;
+}
+
 #endif

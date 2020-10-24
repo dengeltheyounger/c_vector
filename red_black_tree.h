@@ -518,6 +518,10 @@ typedef struct rb_tree_##K##_##V {	\
 	rbtree_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
 	void (*inorder_traverse)(struct rb_tree_##K##_##V *, node(K,V) *);	\
 	V (*get_value)(struct rb_tree_##K##_##V *, K);	\
+	/* The next few functions are mainly for iterating purposes */	\
+	K (*last_key)(struct rb_tree_##K##_##V *);	\
+	K (*next_key)(struct rb_tree_##K##_##V *, K);	\
+	K (*first_key)(struct rb_tree_##K##_##V *);	\
 	rbtree_code (*delete_pair)(struct rb_tree_##K##_##V *, K);	\
 	bool (*check_key)(struct rb_tree_##K##_##V *, K);	\
 } rb_tree_##K##_##V;	\
@@ -569,6 +573,40 @@ V get_value_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	else	\
 		memset(&val, 0, sizeof(V));	\
 	return val;	\
+}	\
+	\
+K last_key_##K##_##V(rb_tree(K,V) *tree) {	\
+	generic_node *groot = (generic_node *) tree->root;	\
+	generic_node *gmax = groot->maximum(groot);	\
+	node(K,V) *max = (node(K,V) *) gmax;	\
+	return max->key;	\
+}	\
+/* Given a key, return the key of the successor */	\
+K next_key_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	K k;	\
+	memset(&k, 0, sizeof(K));	\
+	node(K,V) *node = basic_search_##K##_##V(tree, key);	\
+	/* eventually we need something like errno as a way to better handle */	\
+	/* cases where a key is returned versus some error code */	\
+	generic_node *gnode = (generic_node *) node;	\
+	if (node == NULL)	\
+		return k;	\
+	generic_node *gnext =  gnode->successor(gnode);	\
+	/* This will be NULL if there is no successor */	\
+	if (gnext == NULL) {	\
+		return k;	\
+	}	\
+	node(K,V) *next = (node(K,V) *) gnext;	\
+	return next->key;	\
+}	\
+	\
+K first_key_##K##_##V(rb_tree(K,V) *tree) {	\
+	K key;	\
+	memset(&key, 0, sizeof(K));	\
+	if (tree->root == NULL)	\
+		return key;	\
+	\
+	return tree->root->key;	\
 }	\
 	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
@@ -752,6 +790,9 @@ void set_rbtree_ptr_##K##_##V(rb_tree(K,V) *tree) {	\
 	tree->get_value = &get_value_##K##_##V;	\
 	tree->delete_pair = &delete_##K##_##V;	\
 	tree->check_key = &check_key_##K##_##V;	\
+	tree->last_key = &last_key_##K##_##V;	\
+	tree->next_key = &next_key_##K##_##V;	\
+	tree->first_key = &first_key_##K##_##V;	\
 }	\
 	\
 rb_tree(K,V) *new_rbtree_##K##_##V() {	\

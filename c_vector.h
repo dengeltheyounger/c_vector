@@ -1,7 +1,6 @@
 // All of this is to c_vector c++ compatible
 #ifndef C_VECTOR_H
 #define C_VECTOR_H
-#ifdef	__GNUC__
 #ifndef	__cplusplus
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,9 +14,7 @@
 #include <cstddef>
 #include <cstring>
 #endif
-#endif
 #include "iterator.h"
-
 
 // This can be used to get type information for a c_vector
 #define type_name(DATA_TYPE)	#DATA_TYPE
@@ -384,18 +381,10 @@
 #define define_vector_iterator(TYPE)	\
 typedef struct vector_iterator_##c_vector_##TYPE {	\
 	generic_iterator geniter;	\
-	TYPE (*current)(struct vector_iterator_##c_vector_##TYPE *);	\
-	c_vector_##TYPE *vector;	\
+	const TYPE (*current)(struct vector_iterator_##c_vector_##TYPE *);	\
+	const c_vector_##TYPE *vector;	\
 	size_t current_index;	\
 } vector_iterator_##c_vector_##TYPE;	\
-	\
-	generic_iterator *destroy_vector_iterator_##c_vector_##TYPE(generic_iterator *iter) {	\
-		if (iter == NULL) {	\
-			return NULL;	\
-		}	\
-		free(iter);	\
-		return NULL;	\
-	}	\
 		\
 	void first_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
 		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
@@ -431,7 +420,7 @@ typedef struct vector_iterator_##c_vector_##TYPE {	\
 		generic->next = &next_vector_iterator_##c_vector_##TYPE;	\
 		generic->last = &last_vector_iterator_##c_vector_##TYPE;	\
 		generic->end = &end_vector_iterator_##c_vector_##TYPE;	\
-		generic->destroy_iterator = &destroy_vector_iterator_##c_vector_##TYPE;	\
+		generic->destroy_iterator = &destroy_iterator;	\
 		iter->current = &current_vector_iterator_##c_vector_##TYPE;	\
 	}	\
 	/* The constructor is not generalized in order to abstract away the setting */	\
@@ -449,7 +438,7 @@ typedef struct vector_iterator_##c_vector_##TYPE {	\
 		}	\
 		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) vi;	\
 		iter->vector = vector;	\
-		set_vector_iterator_ptr_##c_vector_##TYPE((vector_iterator(TYPE) *) vi);	\
+		set_vector_iterator_ptr_##c_vector_##TYPE(iter);	\
 		return vi;	\
 	}	\
 
