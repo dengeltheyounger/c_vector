@@ -1,7 +1,7 @@
-#ifdef __GNUG__
-#include <cstdio>
-#else
+#ifndef __cplusplus
 #include <stdio.h>
+#else
+#include <cstdio>
 #endif
 #include "c_vector.h"
 

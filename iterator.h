@@ -1,6 +1,8 @@
 #ifndef ITERATOR_H
 #define ITERATOR_H
+#ifndef __cplusplus
 #include <stdbool.h>
+#endif
 
 /* This is intended to act as an abstract class */
 typedef struct generic_iterator {

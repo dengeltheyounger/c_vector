@@ -1,8 +1,15 @@
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <time.h>
-//#include <stddef.h>
-//#include <stdbool.h>
+#ifndef __cplusplus
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <stddef.h>
+#include <stdbool.h>
+#else
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
+#include <cstddef>
+#endif
 #include "red_black_tree.h"
 
 define_rbtree(int, char)
