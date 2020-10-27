@@ -30,6 +30,7 @@ typedef enum map_code {
 		map_code (*insert)(struct c_map_##K##_##V*, K, V);	\
 		map_code (*delete_pair)(struct c_map_##K##_##V*, K);	\
 		V (*get_value)(struct c_map_##K##_##V*, K);	\
+		bool (*is_key)(struct c_map_##K##_##V*, K);	\
 	} c_map_##K##_##V;	\
 								\
 	c_map(K,V) *destroy_map_##K##_##V(c_map(K,V) *map) {	\
@@ -58,18 +59,21 @@ typedef enum map_code {
 		return no_error;	\
 	}	\
 		\
-	/* this is const because the map_iterator has a const map member */	\
-	/* beyond that, c_map is not expected to be altered by these functions */	\
-	K last_key_map_##K##_##V(const c_map(K,V) *map) {	\
+	bool is_key_map_##K##_##V(c_map(K,V) *map, K key) {	\
+		return map->tree->check_key(map->tree, key);	\
+	}	\
+		\
+	K last_key_map_##K##_##V(c_map(K,V) *map) {	\
 		return map->tree->last_key(map->tree);	\
 	}	\
 		\
-	K first_key_map_##K##_##V(const c_map(K,V) *map) {	\
+	K first_key_map_##K##_##V(c_map(K,V) *map) {	\
 		return map->tree->first_key(map->tree);	\
 	}	\
 		\
-	K next_key_map_##K##_##V(const c_map(K,V) *map, K key) {	\
-		return map->tree->next_key(map->tree, key);	\
+	K next_key_map_##K##_##V(c_map(K,V) *map, K key) {	\
+		K retkey = map->tree->next_key(map->tree, key);	\
+		return retkey;	\
 	}	\
 		\
 	V get_value_map_##K##_##V(c_map(K,V) *map, K key) {	\
@@ -81,6 +85,7 @@ typedef enum map_code {
 		map->insert = &insert_map_##K##_##V;	\
 		map->delete_pair = &delete_pair_map_##K##_##V;	\
 		map->get_value = &get_value_map_##K##_##V;	\
+		map->is_key = &is_key_map_##K##_##V;	\
 	}	\
 		\
 	c_map(K,V) *new_map_##K##_##V() {	\
@@ -109,6 +114,7 @@ typedef struct map_iterator_##K##_##V {	\
 	generic_iterator geniter;	\
 	K key;	\
 	V value;	\
+	bool lastkey;	\
 	c_map(K,V) *map;	\
 } map_iterator_##K##_##V;	\
 	\
@@ -116,6 +122,7 @@ void first_map_iterator_##K##_##V(generic_iterator *generic) {	\
 	map_iterator(K,V) *iter = (map_iterator(K,V) *) generic;	\
 	iter->key = first_key_map_##K##_##V(iter->map);	\
 	iter->value = iter->map->get_value(iter->map, iter->key);	\
+	iter->lastkey = false;	\
 }	\
 	\
 void next_map_iterator_##K##_##V(generic_iterator *generic) {	\
@@ -147,10 +154,16 @@ void last_map_iterator_##K##_##V(generic_iterator *generic) {	\
 /* Compare the iterator key and value with the maximum of the tree */	\
 bool end_map_iterator_##K##_##V(generic_iterator *generic) {	\
 	map_iterator(K,V) *iter = (map_iterator(K,V) *) generic;	\
-	K lastkey = last_key_map_##K##_##V(iter->map);	\
-	if (iter->key == lastkey) {	\
+	if (iter->lastkey) {	\
+		iter->lastkey = false;	\
 		return true;	\
 	}	\
+	K lastkey = last_key_map_##K##_##V(iter->map);	\
+	/* If we got the last key, set lastkey and then return false */	\
+	/* this will allow the last key to be counted before terminating */	\
+	if (iter->key == lastkey)	\
+		iter->lastkey = true;	\
+								\
 	return false;	\
 }	\
 	\
@@ -173,6 +186,7 @@ generic_iterator *new_map_iterator_##K##_##V(c_map(K,V) *map) {	\
 	iter->map = map;	\
 	iter->key = first_key_map_##K##_##V(iter->map);	\
 	iter->value = iter->map->get_value(iter->map, iter->key);	\
+	iter->lastkey = false;	\
 	set_map_iterator_ptr_##K##_##V(iter);	\
 	return mi;	\
 }	\

@@ -17,59 +17,79 @@ define_map(int, char)
 #define get_val()	({ int x = (rand() % 10) + 48; x; })
 
 typedef struct key_holder {
-	int keyset[10];
-	int chosen[10];
+	int keyset[50];
+	int chosen[50];
 	size_t keynum;
 	size_t nextindex;
 } key_holder;
 
-// This is inefficient, but it'll work
-int choose_key(key_holder *holder) {
-	size_t index = 0;
-	int foundindex = 0;
-	// Get a random index and check to see if that index has already been used
-	while (1) {
-		foundindex = 0;
-		index = (rand() % holder->keynum);
-		// If it has, then repeat process
-		for (size_t i = 0; i < holder->nextindex; ++i) {
-			if (index == holder->chosen[i]) {
-				foundindex = 1;
-				break;
-			}
-		}
-		/* If it hasn't, then add the new index to the list of chosen indices
-		 * increment nextindex for the next time
-		 * return the key
-		 */
-		if (!foundindex) {
-			holder->chosen[holder->nextindex] = index;
-			++holder->nextindex;
-			return holder->keyset[index];
-		}
-	}
-}
-
 int main(void) {
+	key_holder keyset;
+	int key, iterkey;
+	char val, iterval;
+	map_code result;
+	size_t count = 0;
 	
 	fprintf(stderr, "Testing constructor\n");
 	
 	c_map(int, char) *map = new_c_map(int, char);
-		
+	
 	if (map == NULL) {
-		fprintf(stderr, "Failed to allocate map!\n");
+		fprintf(stderr, "Map creation failed!\n");
+		return 1;
+	}
+	
+	fprintf(stderr, "Address of map pointed to: %p\n", (void *) map);
+	fprintf(stderr, "Address of tree in map: %p\n", (void *) map->tree);
+	
+	/* Note that the data types are provided as the first two arguments
+	 * and the third type is a map. Imagine int and char being part of the
+	 * template and map being part of the parameterized constructor
+	 */
+	generic_iterator *giter = new_map_iterator(int, char, map);
+	map_iterator(int, char) *iter = (map_iterator(int, char) *) giter;
+	
+	if (giter == NULL) {
+		fprintf(stderr, "Map iterator creation failed\n");
 		return 1;
 	}
 	
 	fprintf(stderr, "Constructor testing successful\n\n");
 	
+	fprintf(stderr, "Testing insertion and iteration\n");
+	
+	for (size_t i = 0; i < 50; ++i) {
+		key = get_key();
+		val = get_val();
+		result = map->insert(map, key, val);
+		if (result != 0) {
+			fprintf(stderr, "Value of result: %d\n", result);
+			return 1;
+		}
+		if (!map->is_key(map, key)) {
+			fprintf(stderr, "Insertion failed!\n");
+			return 1;
+		}
+	}
+		
+	for (giter->first(giter); !giter->end(giter); giter->next(giter), ++count) {
+		iterkey = iter->key;
+		iterval = iter->value;
+		fprintf(stderr, "Key %d, value %d\n", iterkey, iterval);
+	}
+	
+	fprintf(stderr, "Number of keys iterated: %ld\n", count);
+	fprintf(stderr, "Insertion and iteration successful\n");
+	
 	fprintf(stderr, "Testing destructor\n");
 	
 	map = map->destroy_map(map);
+	giter = giter->destroy_iterator(giter); iter = NULL;
 	
 	fprintf(stderr, "Destructor testing successful\n\n");
 	
 	fprintf(stderr, "Size of c_map: %ld bytes\n", sizeof(c_map(int,char)));
+	fprintf(stderr, "Size of map_iterator %ld bytes\n", sizeof(map_iterator(int, char)));
 	
 	return 0;
 }

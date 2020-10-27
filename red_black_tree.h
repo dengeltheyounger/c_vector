@@ -589,8 +589,9 @@ K next_key_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	/* eventually we need something like errno as a way to better handle */	\
 	/* cases where a key is returned versus some error code */	\
 	generic_node *gnode = (generic_node *) node;	\
-	if (node == NULL)	\
+	if (node == NULL) {	\
 		return k;	\
+	}	\
 	generic_node *gnext =  gnode->successor(gnode);	\
 	/* This will be NULL if there is no successor */	\
 	if (gnext == NULL) {	\
@@ -601,12 +602,15 @@ K next_key_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 }	\
 	\
 K first_key_##K##_##V(rb_tree(K,V) *tree) {	\
-	K key;	\
-	memset(&key, 0, sizeof(K));	\
-	if (tree->root == NULL)	\
+	if (tree->root == NULL) {	\
+		K key;	\
+		memset(&key, 0, sizeof(K));	\
 		return key;	\
-	\
-	return tree->root->key;	\
+	}	\
+	generic_node *gnode = (generic_node *) tree->root;	\
+	generic_node *gmin = minimum(gnode);	\
+	node(K,V) *min = (node(K,V) *) gmin;	\
+	return min->key;	\
 }	\
 	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
