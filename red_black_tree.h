@@ -29,15 +29,6 @@ static inline bool is_little() {
 	return false;
 }
 
-typedef struct error_info {
-	char *functname;
-	char *line;
-	char *code;
-} error_info;
-
-// This can be used for error logging
-error_info _err = { .functname = 0, .line = 0, .code = 0 };
-
 typedef enum color_t { BLACK, RED } color_t;
 
 typedef enum rbtree_code {
