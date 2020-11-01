@@ -1,5 +1,12 @@
 #ifndef	ERROR_H
 #define	ERROR_H
+#ifndef __cplusplus
+#include <stlib.h>
+#include <string.h>
+#else
+#include <cstdlib>
+#include <cstring>
+#endif
 
 /* The reason why I use this macro is because I intend to use the
  * __attribute__ macro in order to have it deallocate memory as soon 
@@ -7,19 +14,23 @@
  */
 #ifdef __GNUC__
 	#define	\
-	typedef struct error_info {	\
-		char *filename;	\
-		char *functname;	\
-		char *line;	\
-		char *code;	\
-	} error_info;	\
-	\
-	error_info err_struct;	\
 	/* This will set the error info struct. It will handle allocation */	\
 	/* and deallocation */	\
-	void set_error_info(char *, char *, char *, error_code);	\
-	__attribute__(destructor ()) void free_error_info();
+	__attribute__(destructor ()) void free_error_info();	\
 #endif
+
+#define TO_STRING(ENUM) #ENUM
+
+typedef struct error_info {	
+	char *filename;	
+	char *functname;
+	char *line;	
+	char *code;	
+} error_info;	
+
+error_info err_struct;
+
+static inline void set_error_info(char *, char *, char *, error_code);
 
 // This will be shared by c_vector, c_map, and red_and_black_tree
 typedef enum error_code {
@@ -33,6 +44,18 @@ typedef enum error_code {
 	memcpy_failed,
 	key_not_found,
 } error_code;
+
+const char *error_code_string[] = {
+	TO_STRING(success),
+	TO_STRING(realloc_failed),
+	TO_STRING(memset_failed),
+	TO_STRING(invalid_index),
+	TO_STRING(make_sentinels_failed),
+	TO_STRING(new_node_failed),
+	TO_STRING(basic_insert_failed),
+	TO_STRING(memcpy_failed),
+	TO_STRING(key_not_found)
+};
 
 error_code err;
 
