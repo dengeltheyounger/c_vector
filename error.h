@@ -1,7 +1,7 @@
 #ifndef	ERROR_H
 #define	ERROR_H
 #ifndef __cplusplus
-#include <stlib.h>
+#include <stdlib.h>
 #include <string.h>
 #else
 #include <cstdlib>
@@ -12,11 +12,11 @@
  * __attribute__ macro in order to have it deallocate memory as soon 
  * this goes out of scope (in other words, before the program ends).
  */
-#ifdef __GNUC__
-	#define	\
-	/* This will set the error info struct. It will handle allocation */	\
-	/* and deallocation */	\
-	__attribute__(destructor ()) void free_error_info();	\
+#ifndef __GNUC__
+	// If we're not using gcc, the programmer will need to manually deallocate
+	static inline void free_error_info();
+#else
+	static inline void free_error_info() __attribute__((destructor));
 #endif
 
 #define TO_STRING(ENUM) #ENUM
@@ -29,8 +29,6 @@ typedef struct error_info {
 } error_info;	
 
 error_info err_struct;
-
-static inline void set_error_info(char *, char *, char *, error_code);
 
 // This will be shared by c_vector, c_map, and red_and_black_tree
 typedef enum error_code {
@@ -58,5 +56,7 @@ const char *error_code_string[] = {
 };
 
 error_code err;
+
+static inline void set_error_info(char *, char *, char *);
 
 #endif
