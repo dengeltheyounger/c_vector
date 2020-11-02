@@ -41,6 +41,7 @@ typedef enum error_code {
 	basic_insert_failed,
 	memcpy_failed,
 	key_not_found,
+	null_tree
 } error_code;
 
 const char *error_code_string[] = {
@@ -52,11 +53,12 @@ const char *error_code_string[] = {
 	TO_STRING(new_node_failed),
 	TO_STRING(basic_insert_failed),
 	TO_STRING(memcpy_failed),
-	TO_STRING(key_not_found)
+	TO_STRING(key_not_found),
+	TO_STRING(null_tree)
 };
 
 error_code err;
 
-static inline void set_error_info(char *, char *, char *);
+static inline void set_error_info(char *filename, char *functname, char *line);
 
 #endif

@@ -8,14 +8,8 @@
 #endif
 #include "red_black_tree.h"
 #include "iterator.h"
+#include "error.h"
 
-// Eventually all codes will be consolidated under a single error_code enum
-typedef enum map_code {
-	// since success has already been used, I will use no_error for now
-	no_error,
-	insert_failure,
-	invalid_key
-} map_code;
 
 /* c_map acts as a high level wrapper for the red and black tree 
  * One advantage to having this wrapper is that different map schemes
@@ -27,8 +21,8 @@ typedef enum map_code {
 	typedef struct c_map_##K##_##V {	\
 		rb_tree(K,V) *tree;	\
 		struct c_map_##K##_##V *(*destroy_map)(struct c_map_##K##_##V*);	\
-		map_code (*insert)(struct c_map_##K##_##V*, K, V);	\
-		map_code (*delete_pair)(struct c_map_##K##_##V*, K);	\
+		error_code (*insert)(struct c_map_##K##_##V*, K, V);	\
+		error_code (*delete_pair)(struct c_map_##K##_##V*, K);	\
 		V (*get_value)(struct c_map_##K##_##V*, K);	\
 		bool (*is_key)(struct c_map_##K##_##V*, K);	\
 	} c_map_##K##_##V;	\
@@ -45,17 +39,19 @@ typedef enum map_code {
 		return NULL;	\
 	}	\
 		\
-	map_code insert_map_##K##_##V(c_map(K,V) *map, K key, V value) {	\
+	error_code insert_map_##K##_##V(c_map(K,V) *map, K key, V value) {	\
 		rbtree_code result = map->tree->insert(map->tree, key, value);	\
-		if (result != success)	\
-			return insert_failure;	\
+		if (result != success) {	\
+			return err;	\
+		}	\
 		return no_error;	\
 	}	\
 		\
-	map_code delete_pair_map_##K##_##V(c_map(K,V) *map, K key) {	\
+	error_code delete_pair_map_##K##_##V(c_map(K,V) *map, K key) {	\
 		rbtree_code result = map->tree->delete_pair(map->tree, key);	\
-		if (result != success)	\
-			return invalid_key;	\
+		if (result != success) {	\
+			return err;	\
+		}	\
 		return no_error;	\
 	}	\
 		\
@@ -167,7 +163,7 @@ bool end_map_iterator_##K##_##V(generic_iterator *generic) {	\
 	return false;	\
 }	\
 	\
-void set_map_iterator_ptr_##K##_##V(map_iterator(K,V) *iter) {	\
+static inline void set_map_iterator_ptr_##K##_##V(map_iterator(K,V) *iter) {	\
 	generic_iterator *giter = (generic_iterator *) iter;	\
 	giter->first = &first_map_iterator_##K##_##V;	\
 	giter->next = &next_map_iterator_##K##_##V;	\

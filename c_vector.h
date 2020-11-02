@@ -15,6 +15,7 @@
 #include <cstring>
 #endif
 #include "iterator.h"
+#include "error.h"
 
 // This can be used to get type information for a c_vector
 #define type_name(DATA_TYPE)	#DATA_TYPE
@@ -23,23 +24,6 @@
  * The following method allows the added advantage of compile-time typechecking
  * and also allows for class-like function pointers
  */
- 
- typedef enum array_code {
-	 // This allows 0 as a success code
-	 success,
-	 realloc_failed,
-	 memset_failed,
-	 invalid_index
-} array_code; 
-
-/* code_to_string(CODE)
- * INPUT: CODE -> array_code value
- * OUTPUT: stringified array_code token
- * USAGE: char *error_value = code_to_string(error_code)
- * NOTES: This can be useful if the user desires to implement a logger for this array
- */ 
-
-#define code_to_string(CODE) ({ #CODE; })
  
 /* define_vector(DATA)
  * INPUT: DATA -> data type for desired vector
@@ -143,15 +127,15 @@
 		DATA *data; \
 		const char *data_type; \
 		struct c_vector_##DATA *(*destroy_vector)(struct c_vector_##DATA*);	\
-		array_code (*add_top)(struct c_vector_##DATA*, DATA value);	\
-		array_code (*remove_top)(struct c_vector_##DATA*);	\
+		error_code (*add_top)(struct c_vector_##DATA*, DATA value);	\
+		error_code (*remove_top)(struct c_vector_##DATA*);	\
 		size_t (*get_current_index)(struct c_vector_##DATA*);	\
 		size_t (*get_current_size)(struct c_vector_##DATA*);	\
 		size_t (*get_max_size)(struct c_vector_##DATA*);	\
-		array_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
+		error_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
 		DATA (*value_at)(struct c_vector_##DATA*, size_t);	\
-		array_code (*resize)(struct c_vector_##DATA*, size_t);	\
-		array_code (*shrink)(struct c_vector_##DATA*);	\
+		error_code (*resize)(struct c_vector_##DATA*, size_t);	\
+		error_code (*shrink)(struct c_vector_##DATA*);	\
 	} c_vector_##DATA;	\
 						\
 	c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector) {	\
@@ -166,47 +150,57 @@
 		return NULL;	\
 	}					\
 						\
-	array_code add_top_##DATA(c_vector_##DATA *vector, DATA value) {	\
+	error_code add_top_##DATA(c_vector_##DATA *vector, DATA value) {	\
 		DATA* temp = NULL;	\
 		DATA* memtemp = NULL;	\
 		if ((vector->curr_index+1) > vector->current_size) {	\
 			temp = (DATA*) realloc((void *) vector->data, sizeof(DATA)*2*vector->max_size);	\
 				\
 			if (temp == NULL) {	\
-				return realloc_failed;	\
+				err = realloc_failed;	\
+				set_error_info(__FILE__, "add_top", __LINE__);	\
+				return err;
 			}	\
 			vector->data = temp;	\
 			size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
 			memtemp = (DATA*) memset((void *) &(vector->data[index]), 0, sizeof(DATA)*vector->max_size);	\
 			if (memtemp == NULL) {	\
-				return memset_failed;	\
+				err = memset_failed;	\
+				set_error_info(__FILE__, "add_top", __LINE__);	\
+				return err;	\
 			}	\
 			temp = NULL;	\
 			vector->data[vector->curr_index] = value;	\
 			vector->current_size = vector->max_size;	\
 			vector->max_size *= 2;	\
 			++(vector->curr_index);	\
+			err = success;	\
 			return success;	\
 		}	\
 			\
 		vector->data[vector->curr_index] = value;	\
 		++vector->curr_index;	\
+		err = success;	\
 		return success;	\
 	}	\
 		\
-	array_code remove_top_##DATA(c_vector_##DATA *vector) {	\
+	error_code remove_top_##DATA(c_vector_##DATA *vector) {	\
 		DATA *temp = NULL;	\
 		if (vector->curr_index == 0) {	\
+			err = success;	\
 			return success;	\
 		}	\
 		size_t index = vector->curr_index - 1;	\
 		temp = (DATA *) memset((void *) &vector->data[index], 0, sizeof(DATA));	\
 			\
 		if (temp == NULL) {	\
-			return memset_failed;	\
+			err = memset_failed;	\
+			set_error_info(__FILE__, "remove_top", __LINE__);	\
+			return err;	\
 		}	\
 			\
 		--(vector->curr_index);	\
+		err = success;	\
 		return success;	\
 	}	\
 	size_t get_current_index_##DATA(c_vector_##DATA *vector) {	\
@@ -224,7 +218,9 @@
 		\
 	array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value) {	\
 		if (index > (vector->current_size - 1)) {	\
-			return invalid_index;	\
+			err = invalid_index;	\
+			set_error_info(__FILE__, "remove_top", __LINE__);	\
+			return err;	\
 		}	\
 			\
 		vector->data[index] = value;	\
@@ -233,27 +229,31 @@
 			vector->curr_index = index;	\
 		}	\
 			\
+		err = success;	\
 		return success;	\
-		\
 	}	\
 		\
 	DATA value_at_##DATA(c_vector_##DATA *vector, size_t index) {	\
 		if (index >= vector->curr_index) {	\
+			err = invalid_index;	\
+			set_error_info(__FILE__, "value_at", __LINE__);	\
 			return vector->data[vector->curr_index];	\
 		}	\
 			\
 		return vector->data[index];	\
 	}	\
 		\
-	array_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum) {	\
+	error_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum) {	\
 		size_t newsize = elementnum*sizeof(DATA);	\
 		DATA *temp = NULL;	\
 		DATA *memtemp = NULL;	\
 		if (newsize == vector->current_size) {	\
+			err = success;	\
 			return success;	\
 		}	\
 		else if (newsize > vector->current_size && newsize < vector->max_size) {	\
 			vector->current_size = newsize;	\
+			err = success;	\
 			return success;	\
 		}	\
 			\
@@ -261,34 +261,43 @@
 			size_t index = elementnum - 1;	\
 			temp = (DATA*) memset((void *) &(vector->data[index]), 0, (vector->max_size - newsize));	\
 			if (temp == NULL) {	\
-				return memset_failed;	\
+				err = memset_failed;	\
+				set_error_info(__FILE__, "resize", __LINE__);	\
+				return err;	\
 			}	\
 			vector->current_size = newsize;	\
 			if (vector->curr_index > index) {	\
 				vector->curr_index = index;	\
 			}	\
 				\
+			err = success;	\
 			return success;	\
 		}	\
 			\
 		temp = (DATA*) realloc((void *) vector->data, 2*newsize);	\
 		if (temp == NULL) {	\
-			return realloc_failed;	\
+			err = realloc_failed;	\
+			set_error_info(__FILE__, "resize", __LINE__);	\
+			return err;	\
 		}	\
 		vector->data = temp;	\
 		temp = NULL;	\
 		size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
 		memtemp = (DATA*) memset((void *) &(vector->data[index]), 0, ((2*newsize) - vector->max_size));	\
 		if (memtemp == NULL) {	\
-			return memset_failed;	\
+			err = memset_failed;	\
+			set_error_info(__FILE__, "resize", __LINE__);	\
+			return err;	\
 		}	\
 		vector->current_size = newsize;	\
 		vector->max_size = 2*newsize;	\
+		err = success;	\
 		return success;	\
 	}	\
 		\
-	array_code shrink_##DATA(c_vector_##DATA* vector) {	\
+	error_code shrink_##DATA(c_vector_##DATA* vector) {	\
 		if (vector->max_size == vector->current_size) {	\
+			err = success;	\
 			return success;	\
 		}	\
 			\
@@ -296,11 +305,14 @@
 		temp = (DATA *) realloc((void *) vector->data, vector->current_size);	\
 			\
 		if (temp == NULL) {	\
-			return realloc_failed;	\
+			err = realloc_failed;	\
+			set_error_info(__FILE__, "shrink", __LINE__);	\
+			return err;	\
 		}	\
 			\
 		vector->max_size = vector->current_size;	\
 		vector->data = temp;	\
+		err = success;	\
 		return success;	\
 	}	\
 		\

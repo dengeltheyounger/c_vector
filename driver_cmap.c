@@ -10,6 +10,7 @@
 #include <cstddef>
 #endif
 #include "c_map.h"
+#include "error.h"
 
 define_map(int, char)
 
@@ -27,7 +28,7 @@ int main(void) {
 	key_holder keyset;
 	int key, iterkey;
 	char val, iterval;
-	map_code result;
+	error_code result;
 	size_t count = 0;
 	
 	fprintf(stderr, "Testing constructor\n");

@@ -4,10 +4,8 @@
 #include <cstdio>
 #endif
 #include "c_vector.h"
+#include "error.h"
 
-// driver code for the c_vector
-
-#define STRINGIFY(CODE)	#CODE
 
 define_vector(int)
 
@@ -17,7 +15,7 @@ int main(int argc, char *argv[]) {
 	size_t currindex = 0;
 	size_t currsize = 0;
 	size_t maxsize = 0;
-	array_code code = success;
+	error_code code = success;
 	
 	printf("Testing int vector creation\n");
 	vector = new_c_vector(int, 0);

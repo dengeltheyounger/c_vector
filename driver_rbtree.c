@@ -11,6 +11,7 @@
 #include <cstddef>
 #endif
 #include "red_black_tree.h"
+#include "error.h"
 
 define_rbtree(int, char)
 
@@ -55,7 +56,7 @@ int main() {
 	srand(time(NULL));
 	int key;
 	char value;
-	rbtree_code result;
+	error_code result;
 	key_holder holder;
 	holder.keynum = 10;
 	holder.nextindex = 0;
