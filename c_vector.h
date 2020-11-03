@@ -159,7 +159,7 @@
 			if (temp == NULL) {	\
 				err = realloc_failed;	\
 				set_error_info(__FILE__, "add_top", __LINE__);	\
-				return err;
+				return err;	\
 			}	\
 			vector->data = temp;	\
 			size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
@@ -216,7 +216,7 @@
 	}	\
 		\
 		\
-	array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value) {	\
+	error_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value) {	\
 		if (index > (vector->current_size - 1)) {	\
 			err = invalid_index;	\
 			set_error_info(__FILE__, "remove_top", __LINE__);	\

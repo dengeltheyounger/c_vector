@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
 	code = vector->add_top(vector, 1);
 	
 	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+		fprintf(stderr, "Value of code: %s", err_struct.code);
 	}
 	
 	currindex = vector->get_current_index(vector);
@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
 	code = vector->add_top(vector, 2);
 	
 	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+		fprintf(stderr, "Value of code: %s", err_struct.code);
 	}
 	
 	currindex = vector->get_current_index(vector);
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
 	code = vector->resize(vector, 24);
 
 	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+		fprintf(stderr, "Value of code: %s", err_struct.code);
 	}
 
 	currindex = vector->get_current_index(vector);
@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
 	code = vector->resize(vector, 36);
 
 	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+		fprintf(stderr, "Value of code: %s", err_struct.code);
 	}
 
 	currindex = vector->get_current_index(vector);
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
 	code = vector->resize(vector, 24);
 
 	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+		fprintf(stderr, "Value of code: %s", err_struct.code);
 	}
 
 	currindex = vector->get_current_index(vector);
@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
 	code = vector->add_top(vector, 3);
 
 	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+		fprintf(stderr, "Value of code: %s", err_struct.code);
 	}	
 
 	currindex = vector->get_current_index(vector);
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
 	code = vector->shrink(vector);
 	
 	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+		fprintf(stderr, "Value of code: %s", err_struct.code);
 	}
 	
 	currindex = vector->get_current_index(vector);
@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
 	code = vector->shrink(vector);
 	
 	if (code != 0) {
-		fprintf(stderr, "Value of code: %s", STRINGIFY(code));
+		fprintf(stderr, "Value of code: %s", err_struct.code);
 	}
 	
 	currindex = vector->get_current_index(vector);

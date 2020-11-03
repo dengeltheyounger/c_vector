@@ -40,19 +40,20 @@
 	}	\
 		\
 	error_code insert_map_##K##_##V(c_map(K,V) *map, K key, V value) {	\
-		rbtree_code result = map->tree->insert(map->tree, key, value);	\
+		error_code result = map->tree->insert(map->tree, key, value);	\
 		if (result != success) {	\
+			/* The error struct has already been set. Therefore, just return */	\
 			return err;	\
 		}	\
-		return no_error;	\
+		return success;	\
 	}	\
 		\
 	error_code delete_pair_map_##K##_##V(c_map(K,V) *map, K key) {	\
-		rbtree_code result = map->tree->delete_pair(map->tree, key);	\
+		error_code result = map->tree->delete_pair(map->tree, key);	\
 		if (result != success) {	\
 			return err;	\
 		}	\
-		return no_error;	\
+		return success;	\
 	}	\
 		\
 	bool is_key_map_##K##_##V(c_map(K,V) *map, K key) {	\

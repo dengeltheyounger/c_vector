@@ -40,9 +40,6 @@ int main(void) {
 		return 1;
 	}
 	
-	fprintf(stderr, "Address of map pointed to: %p\n", (void *) map);
-	fprintf(stderr, "Address of tree in map: %p\n", (void *) map->tree);
-	
 	/* Note that the data types are provided as the first two arguments
 	 * and the third type is a map. Imagine int and char being part of the
 	 * template and map being part of the parameterized constructor
