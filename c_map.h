@@ -10,7 +10,6 @@
 #include "iterator.h"
 #include "error.h"
 
-
 /* c_map acts as a high level wrapper for the red and black tree 
  * One advantage to having this wrapper is that different map schemes
  * (ordered, unordered) can be accomodated.
