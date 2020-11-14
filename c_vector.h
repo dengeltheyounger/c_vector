@@ -1,11 +1,12 @@
+// All of this is to c_vector c++ compatible
 #ifndef C_VECTOR_H
 #define C_VECTOR_H
-#ifdef	__GNUC__
 #ifndef	__cplusplus
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdbool.h>
 #else
 #include <cstring>
 #include <cstdio>
@@ -13,8 +14,8 @@
 #include <cstddef>
 #include <cstring>
 #endif
-#endif
-
+#include "iterator.h"
+#include "error.h"
 
 // This can be used to get type information for a c_vector
 #define type_name(DATA_TYPE)	#DATA_TYPE
@@ -23,31 +24,6 @@
  * The following method allows the added advantage of compile-time typechecking
  * and also allows for class-like function pointers
  */
- 
- typedef enum array_code {
-	 // This allows 0 as a success code
-	 success,
-	 realloc_failed,
-	 memset_failed,
-	 invalid_index
-} array_code; 
-
-/* iterate_vector(VECTOR, ITER)
- * INPUT: VECTOR -> c_vector struct pointer, ITER -> size_t variable that points to starting index
- * OUTPUT: None
- * USAGE: iterate_vector(VECTOR, ITER) { code for iteration here... }
- * NOTES: This can be used for many different iteration operations. Just add brackets.
- */
-#define iterate_vector(VECTOR, ITER)	for (ITER; ITER < VECTOR->curr_index; ++ITER)
-
-/* code_to_string(CODE)
- * INPUT: CODE -> array_code value
- * OUTPUT: stringified array_code token
- * USAGE: char *error_value = code_to_string(error_code)
- * NOTES: This can be useful if the user desires to implement a logger for this array
- */ 
-
-#define code_to_string(CODE) ({ #CODE; })
  
 /* define_vector(DATA)
  * INPUT: DATA -> data type for desired vector
@@ -149,17 +125,17 @@
 		size_t current_size; \
 		size_t curr_index; \
 		DATA *data; \
-		char *data_type; \
+		const char *data_type; \
 		struct c_vector_##DATA *(*destroy_vector)(struct c_vector_##DATA*);	\
-		array_code (*add_top)(struct c_vector_##DATA*, DATA value);	\
-		array_code (*remove_top)(struct c_vector_##DATA*);	\
+		error_code (*add_top)(struct c_vector_##DATA*, DATA value);	\
+		error_code (*remove_top)(struct c_vector_##DATA*);	\
 		size_t (*get_current_index)(struct c_vector_##DATA*);	\
 		size_t (*get_current_size)(struct c_vector_##DATA*);	\
 		size_t (*get_max_size)(struct c_vector_##DATA*);	\
-		array_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
+		error_code (*insert)(struct c_vector_##DATA*, size_t, DATA);	\
 		DATA (*value_at)(struct c_vector_##DATA*, size_t);	\
-		array_code (*resize)(struct c_vector_##DATA*, size_t);	\
-		array_code (*shrink)(struct c_vector_##DATA*);	\
+		error_code (*resize)(struct c_vector_##DATA*, size_t);	\
+		error_code (*shrink)(struct c_vector_##DATA*);	\
 	} c_vector_##DATA;	\
 						\
 	c_vector_##DATA *destroy_c_vector_##DATA(c_vector_##DATA* vector) {	\
@@ -174,47 +150,57 @@
 		return NULL;	\
 	}					\
 						\
-	array_code add_top_##DATA(c_vector_##DATA *vector, DATA value) {	\
+	error_code add_top_##DATA(c_vector_##DATA *vector, DATA value) {	\
 		DATA* temp = NULL;	\
 		DATA* memtemp = NULL;	\
 		if ((vector->curr_index+1) > vector->current_size) {	\
 			temp = (DATA*) realloc((void *) vector->data, sizeof(DATA)*2*vector->max_size);	\
 				\
 			if (temp == NULL) {	\
-				return realloc_failed;	\
+				err = realloc_failed;	\
+				set_error_info(__FILE__, "add_top", __LINE__);	\
+				return err;	\
 			}	\
 			vector->data = temp;	\
 			size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
 			memtemp = (DATA*) memset((void *) &(vector->data[index]), 0, sizeof(DATA)*vector->max_size);	\
 			if (memtemp == NULL) {	\
-				return memset_failed;	\
+				err = memset_failed;	\
+				set_error_info(__FILE__, "add_top", __LINE__);	\
+				return err;	\
 			}	\
 			temp = NULL;	\
 			vector->data[vector->curr_index] = value;	\
 			vector->current_size = vector->max_size;	\
 			vector->max_size *= 2;	\
 			++(vector->curr_index);	\
+			err = success;	\
 			return success;	\
 		}	\
 			\
 		vector->data[vector->curr_index] = value;	\
 		++vector->curr_index;	\
+		err = success;	\
 		return success;	\
 	}	\
 		\
-	array_code remove_top_##DATA(c_vector_##DATA *vector) {	\
+	error_code remove_top_##DATA(c_vector_##DATA *vector) {	\
 		DATA *temp = NULL;	\
 		if (vector->curr_index == 0) {	\
+			err = success;	\
 			return success;	\
 		}	\
 		size_t index = vector->curr_index - 1;	\
 		temp = (DATA *) memset((void *) &vector->data[index], 0, sizeof(DATA));	\
 			\
 		if (temp == NULL) {	\
-			return memset_failed;	\
+			err = memset_failed;	\
+			set_error_info(__FILE__, "remove_top", __LINE__);	\
+			return err;	\
 		}	\
 			\
 		--(vector->curr_index);	\
+		err = success;	\
 		return success;	\
 	}	\
 	size_t get_current_index_##DATA(c_vector_##DATA *vector) {	\
@@ -230,9 +216,11 @@
 	}	\
 		\
 		\
-	array_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value) {	\
+	error_code insert_##DATA(c_vector_##DATA *vector, size_t index, DATA value) {	\
 		if (index > (vector->current_size - 1)) {	\
-			return invalid_index;	\
+			err = invalid_index;	\
+			set_error_info(__FILE__, "remove_top", __LINE__);	\
+			return err;	\
 		}	\
 			\
 		vector->data[index] = value;	\
@@ -241,27 +229,31 @@
 			vector->curr_index = index;	\
 		}	\
 			\
+		err = success;	\
 		return success;	\
-		\
 	}	\
 		\
 	DATA value_at_##DATA(c_vector_##DATA *vector, size_t index) {	\
 		if (index >= vector->curr_index) {	\
+			err = invalid_index;	\
+			set_error_info(__FILE__, "value_at", __LINE__);	\
 			return vector->data[vector->curr_index];	\
 		}	\
 			\
 		return vector->data[index];	\
 	}	\
 		\
-	array_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum) {	\
+	error_code resize_##DATA(c_vector_##DATA *vector, size_t elementnum) {	\
 		size_t newsize = elementnum*sizeof(DATA);	\
 		DATA *temp = NULL;	\
 		DATA *memtemp = NULL;	\
 		if (newsize == vector->current_size) {	\
+			err = success;	\
 			return success;	\
 		}	\
 		else if (newsize > vector->current_size && newsize < vector->max_size) {	\
 			vector->current_size = newsize;	\
+			err = success;	\
 			return success;	\
 		}	\
 			\
@@ -269,34 +261,43 @@
 			size_t index = elementnum - 1;	\
 			temp = (DATA*) memset((void *) &(vector->data[index]), 0, (vector->max_size - newsize));	\
 			if (temp == NULL) {	\
-				return memset_failed;	\
+				err = memset_failed;	\
+				set_error_info(__FILE__, "resize", __LINE__);	\
+				return err;	\
 			}	\
 			vector->current_size = newsize;	\
 			if (vector->curr_index > index) {	\
 				vector->curr_index = index;	\
 			}	\
 				\
+			err = success;	\
 			return success;	\
 		}	\
 			\
 		temp = (DATA*) realloc((void *) vector->data, 2*newsize);	\
 		if (temp == NULL) {	\
-			return realloc_failed;	\
+			err = realloc_failed;	\
+			set_error_info(__FILE__, "resize", __LINE__);	\
+			return err;	\
 		}	\
 		vector->data = temp;	\
 		temp = NULL;	\
 		size_t index = (vector->max_size / sizeof(DATA)) - 1;	\
 		memtemp = (DATA*) memset((void *) &(vector->data[index]), 0, ((2*newsize) - vector->max_size));	\
 		if (memtemp == NULL) {	\
-			return memset_failed;	\
+			err = memset_failed;	\
+			set_error_info(__FILE__, "resize", __LINE__);	\
+			return err;	\
 		}	\
 		vector->current_size = newsize;	\
 		vector->max_size = 2*newsize;	\
+		err = success;	\
 		return success;	\
 	}	\
 		\
-	array_code shrink_##DATA(c_vector_##DATA* vector) {	\
+	error_code shrink_##DATA(c_vector_##DATA* vector) {	\
 		if (vector->max_size == vector->current_size) {	\
+			err = success;	\
 			return success;	\
 		}	\
 			\
@@ -304,11 +305,14 @@
 		temp = (DATA *) realloc((void *) vector->data, vector->current_size);	\
 			\
 		if (temp == NULL) {	\
-			return realloc_failed;	\
+			err = realloc_failed;	\
+			set_error_info(__FILE__, "shrink", __LINE__);	\
+			return err;	\
 		}	\
 			\
 		vector->max_size = vector->current_size;	\
 		vector->data = temp;	\
+		err = success;	\
 		return success;	\
 	}	\
 		\
@@ -361,7 +365,8 @@
 		vector->data_type = type_name(DATA);	\
 		set_vector_ptr_##DATA(vector);	\
 		return vector;	\
-	}	
+	}	\
+	define_vector_iterator(DATA)	\
 	
 /* c_vector(DATA)
  * INPUT: DATA -> the data type desired for the array
@@ -384,5 +389,72 @@
  * data type and number of elements.
  */
 #define new_c_vector(DATA, NUMBER) new_vector_##DATA((size_t) NUMBER)
-	
+
+#define define_vector_iterator(TYPE)	\
+typedef struct vector_iterator_##c_vector_##TYPE {	\
+	generic_iterator geniter;	\
+	const TYPE (*current)(struct vector_iterator_##c_vector_##TYPE *);	\
+	const c_vector_##TYPE *vector;	\
+	size_t current_index;	\
+} vector_iterator_##c_vector_##TYPE;	\
+		\
+	void first_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
+		iter->current_index = 0;	\
+	}	\
+		\
+	void next_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
+		++(iter->current_index);	\
+	}	\
+		\
+	void last_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
+		iter->current_index = iter->vector->curr_index;	\
+	}	\
+		\
+	bool end_vector_iterator_##c_vector_##TYPE(generic_iterator *generic) {	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) generic;	\
+		if (iter->current_index >= iter->vector->curr_index) {	\
+			iter->current_index = 0;	\
+			return true;	\
+		}	\
+		return false;	\
+	}	\
+		\
+	TYPE current_vector_iterator_##c_vector_##TYPE(vector_iterator(TYPE) *iter) {	\
+		return iter->vector->data[iter->current_index];	\
+	}	\
+		\
+	void set_vector_iterator_ptr_##c_vector_##TYPE(vector_iterator(TYPE) *iter) {	\
+		generic_iterator *generic = (generic_iterator *) iter;	\
+		generic->first = &first_vector_iterator_##c_vector_##TYPE;	\
+		generic->next = &next_vector_iterator_##c_vector_##TYPE;	\
+		generic->last = &last_vector_iterator_##c_vector_##TYPE;	\
+		generic->end = &end_vector_iterator_##c_vector_##TYPE;	\
+		generic->destroy_iterator = &destroy_iterator;	\
+		iter->current = &current_vector_iterator_##c_vector_##TYPE;	\
+	}	\
+	/* The constructor is not generalized in order to abstract away the setting */	\
+	/* of the functoin pointer. I'd like to find a way around that, though. */	\
+	generic_iterator *new_vector_iterator_##c_vector_##TYPE(c_vector_##TYPE *vector) {	\
+		/* vector iterator stores pointer to vector and the current */	\
+		/* data pointed to */	\
+		if (vector == NULL) {	\
+			return NULL;	\
+		}	\
+			\
+		generic_iterator *vi = (generic_iterator *) calloc(1, sizeof(vector_iterator(TYPE)));	\
+		if (vi == NULL) {	\
+			return NULL;	\
+		}	\
+		vector_iterator(TYPE) *iter = (vector_iterator(TYPE) *) vi;	\
+		iter->vector = vector;	\
+		set_vector_iterator_ptr_##c_vector_##TYPE(iter);	\
+		return vi;	\
+	}	\
+
+/* vector_iterator_##c_vector_##TYPE is the same as vector_iterator_##VECTOR */
+#define vector_iterator(TYPE)	vector_iterator_##c_vector_##TYPE	
+#define new_vector_iterator(TYPE, vector)	new_vector_iterator_##c_vector_##TYPE(vector)
 #endif

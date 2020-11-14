@@ -1,11 +1,19 @@
 #ifndef RED_BLACK_TREE
 #define RED_BLACK_TREE
+#ifndef __cplusplus
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#else
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cstdint>
+#include <cstddef>
+#endif
 
 #define PRINT_COLOR(NODE)	fprintf(stderr, "%s", NODE->color == RED ? "RED" : "BLACK")
 
@@ -21,25 +29,7 @@ static inline bool is_little() {
 	return false;
 }
 
-typedef struct error_info {
-	char *functname;
-	char *line;
-	char *code;
-} error_info;
-
-// This can be used for error logging
-error_info _err = { .functname = 0, .line = 0, .code = 0 };
-
 typedef enum color_t { BLACK, RED } color_t;
-
-typedef enum rbtree_code {
-	realloc_failed = 1,
-	make_sentinels_failed,
-	new_node_failed,
-	basic_insert_failed,
-	memcpy_failed,
-	key_not_found
-} rbtree_code;
 
 /* define_node(K,V)
  * INPUT: K -> key data type, V -> value data type
@@ -111,7 +101,7 @@ static inline generic_node *make_sentinel() {
 
 generic_node *set_sentinels(generic_node *node, generic_node *sentinel) {
 	if (sentinel == NULL) {
-		sentinel = make_sentinel(sentinel);
+		sentinel = make_sentinel();
 		if (sentinel == NULL)
 			return NULL;
 	}
@@ -275,6 +265,8 @@ static inline int compare_big_endian(const unsigned char *key, const unsigned ch
 	}
 	return 0;
 }
+
+/* This will not necessarily work with machines that are neither big nor little endian */
 static inline int compare_bytes(const void *key, const void *nkey, size_t bytes) {
 	if (is_little())
 		return compare_little_endian((unsigned char *) key, (unsigned char *)  nkey, bytes);
@@ -440,7 +432,7 @@ void repair_tree_delete(generic_node **root, generic_node *node) {
 		sibling = temp->sibling(temp);
 		/* case four exits when it is finished */
 		if (temp->parent->color == RED && sibling->color == BLACK &&
-			sibling->lchild == BLACK && sibling->rchild == BLACK) {
+			sibling->lchild->color == BLACK && sibling->rchild->color == BLACK) {
 			sibling->color = RED;
 			temp->parent->color = BLACK;
 			return;
@@ -448,7 +440,7 @@ void repair_tree_delete(generic_node **root, generic_node *node) {
 		sibling = temp->sibling(temp);
 		/* case five proceeds to case six */
 		if (sibling->color == BLACK) {
-			if (temp == temp->parent->lchild && sibling->rchild == BLACK &&
+			if (temp == temp->parent->lchild && sibling->rchild->color == BLACK &&
 				sibling->lchild->color == RED) {
 				sibling->color = RED;
 				sibling->lchild->color = BLACK;
@@ -504,10 +496,14 @@ typedef struct rb_tree_##K##_##V {	\
 	node(K,V) *root;	\
 	generic_node *sentinel;	\
 	struct rb_tree_##K##_##V *(*destroy_rbtree)(struct rb_tree_##K##_##V *);	\
-	rbtree_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
+	error_code (*insert)(struct rb_tree_##K##_##V *, K, V);	\
 	void (*inorder_traverse)(struct rb_tree_##K##_##V *, node(K,V) *);	\
 	V (*get_value)(struct rb_tree_##K##_##V *, K);	\
-	rbtree_code (*delete_pair)(struct rb_tree_##K##_##V *, K);	\
+	/* The next few functions are mainly for iterating purposes */	\
+	K (*last_key)(struct rb_tree_##K##_##V *);	\
+	K (*next_key)(struct rb_tree_##K##_##V *, K);	\
+	K (*first_key)(struct rb_tree_##K##_##V *);	\
+	error_code (*delete_pair)(struct rb_tree_##K##_##V *, K);	\
 	bool (*check_key)(struct rb_tree_##K##_##V *, K);	\
 } rb_tree_##K##_##V;	\
 	\
@@ -555,9 +551,50 @@ V get_value_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
 	if (temp != NULL)	\
 		val = temp->value;	\
-	else	\
+	else {	\
 		memset(&val, 0, sizeof(V));	\
+		err = key_not_found;	\
+		set_error_info(__FILE__, "get_value", __LINE__);	\
+	}	\
 	return val;	\
+}	\
+	\
+K last_key_##K##_##V(rb_tree(K,V) *tree) {	\
+	generic_node *groot = (generic_node *) tree->root;	\
+	generic_node *gmax = groot->maximum(groot);	\
+	node(K,V) *max = (node(K,V) *) gmax;	\
+	return max->key;	\
+}	\
+/* Given a key, return the key of the successor */	\
+K next_key_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+	K k;	\
+	memset(&k, 0, sizeof(K));	\
+	node(K,V) *node = basic_search_##K##_##V(tree, key);	\
+	generic_node *gnode = (generic_node *) node;	\
+	if (node == NULL) {	\
+		return k;	\
+	}	\
+	generic_node *gnext =  gnode->successor(gnode);	\
+	/* This will be NULL if there is no successor */	\
+	if (gnext == NULL) {	\
+		return k;	\
+	}	\
+	node(K,V) *next = (node(K,V) *) gnext;	\
+	return next->key;	\
+}	\
+	\
+K first_key_##K##_##V(rb_tree(K,V) *tree) {	\
+	if (tree->root == NULL) {	\
+		K key;	\
+		memset(&key, 0, sizeof(K));	\
+		err = null_tree;	\
+		set_error_info(__FILE__, "first_key", __LINE__);	\
+		return key;	\
+	}	\
+	generic_node *gnode = (generic_node *) tree->root;	\
+	generic_node *gmin = minimum(gnode);	\
+	node(K,V) *min = (node(K,V) *) gmin;	\
+	return min->key;	\
 }	\
 	\
 static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
@@ -613,14 +650,17 @@ static inline node(K,V) *basic_insert_##K##_##V(rb_tree(K,V) *tree, K key, V val
 	return ntemp;	\
 }	\
 	\
-rbtree_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
+error_code insert_##K##_##V(rb_tree(K,V) *tree, K key, V value) {	\
 	/* Insert and then perform tree repairs */	\
 	generic_node *temp = (generic_node *) basic_insert_##K##_##V(tree, key, value);	\
 	if (temp == NULL) {	\
-		return basic_insert_failed;	\
+		err = basic_insert_failed;	\
+		set_error_info(__FILE__, "insert", __LINE__);	\
+		return err;	\
 	}	\
 	repair_tree_insert((generic_node **) &tree->root, temp);	\
-	return 0;	\
+	err = success;	\
+	return success;	\
 }	\
 	\
 /* basic delete is basic in the sense that it doesn't handle repair	*/	\
@@ -693,16 +733,21 @@ static inline node(K,V) *basic_delete_##K##_##V(rb_tree(K,V) *tree, node(K,V) *n
 	return NULL;	\
 }	\
 	\
-rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
+error_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 	node(K,V) *temp = basic_search_##K##_##V(tree, key);	\
 	node(K,V) *child = NULL;	\
-	if (temp == NULL)	\
-		return key_not_found;	\
+	if (temp == NULL) {	\
+		err = key_not_found;	\
+		set_error_info(__FILE__, "delete", __LINE__);	\
+		return err;	\
+	}	\
 	\
 	child = basic_delete_##K##_##V(tree, temp);		\
 	/* NULL indicates that no tree repair is necessary */	\
-	if (child == NULL)	\
-		return 0;	\
+	if (child == NULL) {	\
+		err = success;	\
+		return success;	\
+	}	\
 	/* basic delete does not delete the node in question when a child */	\
 	/* is returned. This is necessary for tree repair. */	\
 	/* For this reason, temp is freed after repair tree returns */	\
@@ -714,7 +759,8 @@ rbtree_code delete_##K##_##V(rb_tree(K,V) *tree, K key) {	\
 		free(temp);	\
 	}	\
 	\
-	return 0;	\
+	err = success;	\
+	return success;	\
 }	\
 void inorder_traverse_##K##_##V(rb_tree(K,V) *tree, node(K,V) *node)	{	\
 	generic_node *temp = (generic_node *) node;	\
@@ -741,6 +787,9 @@ void set_rbtree_ptr_##K##_##V(rb_tree(K,V) *tree) {	\
 	tree->get_value = &get_value_##K##_##V;	\
 	tree->delete_pair = &delete_##K##_##V;	\
 	tree->check_key = &check_key_##K##_##V;	\
+	tree->last_key = &last_key_##K##_##V;	\
+	tree->next_key = &next_key_##K##_##V;	\
+	tree->first_key = &first_key_##K##_##V;	\
 }	\
 	\
 rb_tree(K,V) *new_rbtree_##K##_##V() {	\

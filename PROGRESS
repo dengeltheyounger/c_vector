@@ -1,0 +1,11 @@
+So far, both c_vector and c_map work as expected. I have not found any memory leaks during the testing of either c_vector or 
+c_map. Both c_vector and c_map allow for arbitrary data types (so long as the client calls the define_vector or define_map
+macro) provided that they are one word. The project shows various aspects of OOP in C. Composition, aggregation, enapsulation,
+abstraction are some of the main focuses of the project. In addition to that, I am in the process of implementing the iterator
+design pattern. The wrapper facade pattern has been implemented throughout the program. 
+
+For the most part, everything is complete and in a working state. The only thing is that I want to develop a better way of 
+doing error handling. 
+
+A makefile has been provided for ease of compilation and clean up. Simply type "make all" to compile all of the test files,
+and "make clean" to remove the files.
